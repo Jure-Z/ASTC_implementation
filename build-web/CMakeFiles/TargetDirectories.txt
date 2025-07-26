@@ -1,0 +1,5 @@
+C:/faks/ASTC_implementation/build-web/CMakeFiles/webgpu_astc.dir
+C:/faks/ASTC_implementation/build-web/CMakeFiles/edit_cache.dir
+C:/faks/ASTC_implementation/build-web/CMakeFiles/rebuild_cache.dir
+C:/faks/ASTC_implementation/build-web/webgpu/CMakeFiles/edit_cache.dir
+C:/faks/ASTC_implementation/build-web/webgpu/CMakeFiles/rebuild_cache.dir
