@@ -38,7 +38,7 @@ endif()
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS code/*.cpp)
 
 # === Source files ===
-add_executable(webgpu_astc ${SOURCES} "code/stb_image.h" "code/webgpu_utils.cpp" "code/webgpu_utils.h" "code/compression_pipeline.cpp"   "code/metadata_structures.cpp" "code/astc.h")
+add_executable(webgpu_astc ${SOURCES} "code/stb_image.h" "code/webgpu_utils.cpp" "code/webgpu_utils.h" "code/compression_pipeline.cpp"   "code/metadata_structures.cpp" "code/astc.h" "code/physical_compression.cpp")
 
 set_target_properties(webgpu_astc PROPERTIES
 	CXX_STANDARD 20

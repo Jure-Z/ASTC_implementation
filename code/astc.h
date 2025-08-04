@@ -22,6 +22,7 @@ const unsigned int BLOCK_MAX_PARTITIONINGS = 1024;
 const unsigned int BLOCK_MAX_WEIGHTS = 64;
 
 const unsigned int BLOCK_MAX_WEIGHTS_2PLANE = BLOCK_MAX_WEIGHTS / 2;
+const unsigned int WEIGHTS_PLANE2_OFFSET = BLOCK_MAX_WEIGHTS_2PLANE;
 
 const unsigned int BLOCK_MIN_WEIGHT_BITS = 24;
 
@@ -119,10 +120,6 @@ static inline unsigned int get_quant_level(quant_method method)
 	// Unreachable - the enum is fully described
 	return 0;
 }
-
-
-unsigned int get_ise_sequence_bitcount(unsigned int character_count, quant_method quant_level);
-
 
 //temporary constants
 const int quant_limit = QUANT_12;
@@ -503,15 +500,63 @@ struct alignas(16) FinalCandidate {
 	uint32_t quant_level_mod;
 
 	uint32_t _padding1;
-	uint32_t _padding2;
-	uint32_t _padding3;
+	
+	uint32_t color_formats_matched;
+	uint32_t final_quant_mode; // The quant mode after checking the mod version
 
 	uint32_t formats[4];
+
+	uint32_t quantized_weights[BLOCK_MAX_WEIGHTS];
+	IdealEndpointsAndWeights_p candidate_partitions[4];
+
+	uint32_t final_formats[4];
+	uint32_t packed_color_values[32]; //8 integers per partition, 4 partitions
+};
+
+//output of unpack color endpoints shader
+struct alignas(16) UnpackedEndpoints {
+	int32_t endpoint0[4][4];
+	int32_t endpoint1[4][4];
+};
+
+struct alignas(16) SymbolicBlock {
+	float errorval;
+
+	uint32_t block_mode_index;
+	uint32_t partition_count;
+	uint32_t partition_index;
+
+	uint32_t partition_formats_matched;
+	uint32_t quant_mode;
+
+	uint32_t _padding1;
+	uint32_t _padding2;
+
+	uint32_t partition_formats[4];
+	uint32_t packed_color_values[32];
+	uint32_t quantized_weights[BLOCK_MAX_WEIGHTS];
 };
 
 
 //End of block data struct definitions
 //-----------------------------------------------------------------------------------------------------------------------------------
+
+
+//Utility functions
+//-----------------------------------------------------------------------------------------------------------------------------------
+
+/**
+ * @brief Return the number of bits needed to encode an ISE sequence.
+ *
+ * This implementation assumes that the @c quant level is untrusted, given it may come from random
+ * data being decompressed, so we return an arbitrary unencodable size if that is the case.
+ *
+ * @param character_count   The number of items in the sequence.
+ * @param quant_level       The desired quantization level.
+ *
+ * @return The number of bits needed to encode the BISE string.
+ */
+unsigned int get_ise_sequence_bitcount(unsigned int character_count, quant_method quant_level);
 
 /**
  * @brief Split image into a vector of blocks containing raw color data
@@ -524,7 +569,31 @@ std::vector<InputBlock> SplitImageIntoBlocks(
 	int blockHeight
 );
 
+/**
+ * @brief Encode a packed string using BISE.
+ *
+ * Note that BISE can return strings that are not a whole number of bytes in length, and ASTC can
+ * start storing strings in a block at arbitrary bit offsets in the encoded data.
+ *
+ * @param         quant_level       The BISE alphabet size.
+ * @param         character_count   The number of characters in the string.
+ * @param         input_data        The unpacked string, one byte per character.
+ * @param[in,out] output_data       The output packed string.
+ * @param         bit_offset        The starting offset in the output storage.
+ */
+void encode_ise(
+	quant_method quant_level,
+	unsigned int character_count,
+	const uint8_t* input_data,
+	uint8_t* output_data,
+	unsigned int bit_offset
+);
 
+void symbolic_to_physical(
+	const block_descriptor& block_descriptor,
+	const SymbolicBlock& symbolic_compressed_block,
+	uint8_t physical_compressed_block[16]
+);
 
 class ASTCEncoder {
 public:
@@ -580,7 +649,12 @@ private:
 	wgpu::ShaderModule pass11_bestEndpointCombinationsForModeShader_3part;
 	wgpu::ShaderModule pass11_bestEndpointCombinationsForModeShader_4part;
 	wgpu::ShaderModule pass12_findTopNCandidatesShader;
-
+	wgpu::ShaderModule pass13_recomputeIdealEndpointsShader;
+	wgpu::ShaderModule pass14_packColorEndpointsShader;
+	wgpu::ShaderModule pass15_unpackColorEndpointsShader;
+	wgpu::ShaderModule pass16_realignWeightsShader;
+	wgpu::ShaderModule pass17_computeFinalErrorShader;
+	wgpu::ShaderModule pass18_pickBestCandidateShader;
 
 	//Compute Pipelines
 	wgpu::ComputePipeline pass1_pipeline;
@@ -599,7 +673,13 @@ private:
 	wgpu::ComputePipeline pass11_pipeline_2part;
 	wgpu::ComputePipeline pass11_pipeline_3part;
 	wgpu::ComputePipeline pass11_pipeline_4part;
-	wgpu::ComputePipeline pass12_pipeline;	
+	wgpu::ComputePipeline pass12_pipeline;
+	wgpu::ComputePipeline pass13_pipeline;
+	wgpu::ComputePipeline pass14_pipeline;
+	wgpu::ComputePipeline pass15_pipeline;
+	wgpu::ComputePipeline pass16_pipeline;
+	wgpu::ComputePipeline pass17_pipeline;
+	wgpu::ComputePipeline pass18_pipeline;
 
 	//Bind Group Layouts
 	wgpu::BindGroupLayout pass1_bindGroupLayout;
@@ -615,6 +695,12 @@ private:
 	wgpu::BindGroupLayout pass11_bindGroupLayout_1part;
 	wgpu::BindGroupLayout pass11_bindGroupLayout_234part;
 	wgpu::BindGroupLayout pass12_bindGroupLayout;
+	wgpu::BindGroupLayout pass13_bindGroupLayout;
+	wgpu::BindGroupLayout pass14_bindGroupLayout;
+	wgpu::BindGroupLayout pass15_bindGroupLayout;
+	wgpu::BindGroupLayout pass16_bindGroupLayout;
+	wgpu::BindGroupLayout pass17_bindGroupLayout;
+	wgpu::BindGroupLayout pass18_bindGroupLayout;
 
 	//Buffers
 	wgpu::Buffer uniformsBuffer;
@@ -652,6 +738,10 @@ private:
 	wgpu::Buffer pass10_output_colorEndpointCombinations;
 	wgpu::Buffer pass11_output_bestEndpointCombinationsForMode;
 	wgpu::Buffer pass12_output_finalCandidates;
+	wgpu::Buffer pass13_output_rgbsVectors;
+	wgpu::Buffer pass15_output_unpackedEndpoints;
+	wgpu::Buffer pass17_output_finalErrors;
+	wgpu::Buffer pass18_output_symbolicBlocks;
 
 	//Readback buffers
 	wgpu::Buffer readbackBuffer;
@@ -677,4 +767,10 @@ private:
 	wgpu::BindGroup pass11_bindGroup_1part;
 	wgpu::BindGroup pass11_bindGroup_234part;
 	wgpu::BindGroup pass12_bindGroup;
+	wgpu::BindGroup pass13_bindGroup;
+	wgpu::BindGroup pass14_bindGroup;
+	wgpu::BindGroup pass15_bindGroup;
+	wgpu::BindGroup pass16_bindGroup;
+	wgpu::BindGroup pass17_bindGroup;
+	wgpu::BindGroup pass18_bindGroup;
 };

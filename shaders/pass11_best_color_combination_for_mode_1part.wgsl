@@ -62,13 +62,24 @@ const QUANT_MODE_TABLE = array<i32, 1280>(
     12, 12, 12, 12, 12, 13, 13, 13, 13, 13, 13, 13, 14, 14, 14, 14, 14, 14, 15, 15, 15, 15, 15, 16, 16, 16, 16, 16, 16, 16, 17, 17
 );
 
-// Endpoint format constants
+//ASTC endpoint formats
 const FMT_LUMINANCE = 0u;
-const FMT_LUMINANCE_ALPHA = 1u;
-const FMT_RGB_SCALE = 2u;
-const FMT_RGB_SCALE_ALPHA = 3u;
-const FMT_RGB = 4u;
-const FMT_RGBA = 5u;
+const FMT_LUMINANCE_DELTA = 1u;
+const FMT_HDR_LUMINANCE_LARGE_RANGE = 2u;
+const FMT_HDR_LUMINANCE_SMALL_RANGE = 3u;
+const FMT_LUMINANCE_ALPHA = 4u;
+const FMT_LUMINANCE_ALPHA_DELTA = 5u;
+const FMT_RGB_SCALE = 6u;
+const FMT_HDR_RGB_SCALE = 7u;
+const FMT_RGB = 8u;
+const FMT_RGB_DELTA = 9u;
+const FMT_RGB_SCALE_ALPHA = 10u;
+const FMT_HDR_RGB = 11u;
+const FMT_RGBA = 12u;
+const FMT_RGBA_DELTA = 13u;
+const FMT_HDR_RGB_LDR_ALPHA = 14u;
+const FMT_HDR_RGBA = 15u;
+
 
 
 struct UniformVariables {

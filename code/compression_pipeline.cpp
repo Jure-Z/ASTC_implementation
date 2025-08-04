@@ -313,13 +313,96 @@ void ASTCEncoder::initBindGroupLayouts() {
     bg12_entries.push_back({ .binding = 1, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Block mode trials buffer
     bg12_entries.push_back({ .binding = 2, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Modes per block buffer
 	bg12_entries.push_back({ .binding = 3, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Block mode trial offsets buffer
-    bg12_entries.push_back({ .binding = 4, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Output of pass11 (best endpoint combiantions for mode)
-    bg12_entries.push_back({ .binding = 5, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::Storage} }); //Output of pass12 (final candidates)
+	bg12_entries.push_back({ .binding = 4, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Output of pass 1 (ideal endpoints and weights)
+	bg12_entries.push_back({ .binding = 5, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //output of pass 7 (quantization results)
+    bg12_entries.push_back({ .binding = 6, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Output of pass11 (best endpoint combiantions for mode)
+    bg12_entries.push_back({ .binding = 7, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::Storage} }); //Output of pass12 (final candidates)
 
     wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc12 = {};
     bindGroupLayoutDesc12.entryCount = (uint32_t)bg12_entries.size();
     bindGroupLayoutDesc12.entries = bg12_entries.data();
     pass12_bindGroupLayout = device.CreateBindGroupLayout(&bindGroupLayoutDesc12);
+
+    //bind grup layout for pass 13
+    std::vector<wgpu::BindGroupLayoutEntry> bg13_entries;
+    bg13_entries.push_back({ .binding = 0, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::Uniform} }); //Uniforms Buffer
+    bg13_entries.push_back({ .binding = 1, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Decimation infos buffer
+    bg13_entries.push_back({ .binding = 2, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Texel to weight map buffer
+    bg13_entries.push_back({ .binding = 3, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Block modes buffer
+    bg13_entries.push_back({ .binding = 4, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Input blocks buffer
+    bg13_entries.push_back({ .binding = 5, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::Storage} }); //Output of pass12 (final candidates)
+    bg13_entries.push_back({ .binding = 6, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::Storage} }); //Output of pass13 (rgbs vectors)
+
+    wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc13 = {};
+    bindGroupLayoutDesc13.entryCount = (uint32_t)bg13_entries.size();
+    bindGroupLayoutDesc13.entries = bg13_entries.data();
+    pass13_bindGroupLayout = device.CreateBindGroupLayout(&bindGroupLayoutDesc13);
+
+    //bind grup layout for pass 14
+    std::vector<wgpu::BindGroupLayoutEntry> bg14_entries;
+    bg14_entries.push_back({ .binding = 0, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::Uniform} }); //Uniforms Buffer
+    bg14_entries.push_back({ .binding = 1, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Output of pass13 (rgbs vectors)
+    bg14_entries.push_back({ .binding = 2, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::Storage} }); //Output of pass12 (final candidates)
+
+    wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc14 = {};
+    bindGroupLayoutDesc14.entryCount = (uint32_t)bg14_entries.size();
+    bindGroupLayoutDesc14.entries = bg14_entries.data();
+    pass14_bindGroupLayout = device.CreateBindGroupLayout(&bindGroupLayoutDesc14);
+
+    //bind grup layout for pass 15
+    std::vector<wgpu::BindGroupLayoutEntry> bg15_entries;
+    bg15_entries.push_back({ .binding = 0, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::Uniform} }); //Uniforms Buffer
+    bg15_entries.push_back({ .binding = 1, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Output of pass12 (final candidates)
+    bg15_entries.push_back({ .binding = 2, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::Storage} }); //Output of pass15 (unpacked endpoints)
+
+    wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc15 = {};
+    bindGroupLayoutDesc15.entryCount = (uint32_t)bg15_entries.size();
+    bindGroupLayoutDesc15.entries = bg15_entries.data();
+    pass15_bindGroupLayout = device.CreateBindGroupLayout(&bindGroupLayoutDesc15);
+
+    //bind grup layout for pass 16
+    std::vector<wgpu::BindGroupLayoutEntry> bg16_entries;
+    bg16_entries.push_back({ .binding = 0, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::Uniform} }); //Uniforms Buffer
+    bg16_entries.push_back({ .binding = 1, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Block modes
+    bg16_entries.push_back({ .binding = 2, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Decimation infos
+    bg16_entries.push_back({ .binding = 3, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Texel to weight map
+    bg16_entries.push_back({ .binding = 4, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Weight to texel map
+    bg16_entries.push_back({ .binding = 5, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Input blocks
+    bg16_entries.push_back({ .binding = 6, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Output of pass15 (unpacked endpoints)
+    bg16_entries.push_back({ .binding = 7, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::Storage} }); //Output of pass12 (final candidates)
+
+    wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc16 = {};
+    bindGroupLayoutDesc16.entryCount = (uint32_t)bg16_entries.size();
+    bindGroupLayoutDesc16.entries = bg16_entries.data();
+    pass16_bindGroupLayout = device.CreateBindGroupLayout(&bindGroupLayoutDesc16);
+
+    //bind grup layout for pass 17
+    std::vector<wgpu::BindGroupLayoutEntry> bg17_entries;
+    bg17_entries.push_back({ .binding = 0, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::Uniform} }); //Uniforms Buffer
+    bg17_entries.push_back({ .binding = 1, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Block modes
+    bg17_entries.push_back({ .binding = 2, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Decimation infos
+    bg17_entries.push_back({ .binding = 3, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Texel to weight map
+    bg17_entries.push_back({ .binding = 4, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Input blocks
+    bg17_entries.push_back({ .binding = 5, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Output of pass12 (final candidates)
+    bg17_entries.push_back({ .binding = 6, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Output of pass15 (unpacked endpoints)
+    bg17_entries.push_back({ .binding = 7, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::Storage} }); //Output of pass17 (final errors)
+
+    wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc17 = {};
+    bindGroupLayoutDesc17.entryCount = (uint32_t)bg17_entries.size();
+    bindGroupLayoutDesc17.entries = bg17_entries.data();
+    pass17_bindGroupLayout = device.CreateBindGroupLayout(&bindGroupLayoutDesc17);
+
+    //bind grup layout for pass 18
+    std::vector<wgpu::BindGroupLayoutEntry> bg18_entries;
+    bg18_entries.push_back({ .binding = 0, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::Uniform} }); //Uniforms Buffer
+    bg18_entries.push_back({ .binding = 1, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Output of pass12 (final candidates)
+    bg18_entries.push_back({ .binding = 2, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Output of pass17 (final errors)
+    bg18_entries.push_back({ .binding = 3, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::Storage} }); //Output of pass18 (symbolic blocks)
+
+    wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc18 = {};
+    bindGroupLayoutDesc18.entryCount = (uint32_t)bg18_entries.size();
+    bindGroupLayoutDesc18.entries = bg18_entries.data();
+    pass18_bindGroupLayout = device.CreateBindGroupLayout(&bindGroupLayoutDesc18);
 }
 
 void ASTCEncoder::initPipelines() {
@@ -343,6 +426,12 @@ void ASTCEncoder::initPipelines() {
 	pass11_bestEndpointCombinationsForModeShader_3part = prepareShaderModule(device, "shaders/pass11_best_color_combination_for_mode_3part.wgsl", "best endpoint combinations for mode (pass11, 3part)");
 	pass11_bestEndpointCombinationsForModeShader_4part = prepareShaderModule(device, "shaders/pass11_best_color_combination_for_mode_4part.wgsl", "best endpoint combinations for mode (pass11, 4part)");
 	pass12_findTopNCandidatesShader = prepareShaderModule(device, "shaders/pass12_find_top_N_candidates.wgsl", "find top N candidates (pass12)");
+	pass13_recomputeIdealEndpointsShader = prepareShaderModule(device, "shaders/pass13_recompute_ideal_endpoints.wgsl", "recompute ideal endpoints (pass13)");
+	pass14_packColorEndpointsShader = prepareShaderModule(device, "shaders/pass14_pack_color_endpoints.wgsl", "pack color endpoints (pass14)");
+    pass15_unpackColorEndpointsShader = prepareShaderModule(device, "shaders/pass15_unpack_color_endpoints.wgsl", "unpack color endpoints (pass15)");
+    pass16_realignWeightsShader = prepareShaderModule(device, "shaders/pass16_realign_weights.wgsl", "realign weights (pass16)");
+    pass17_computeFinalErrorShader = prepareShaderModule(device, "shaders/pass17_compute_final_error.wgsl", "compute final error (pass17)");
+    pass18_pickBestCandidateShader = prepareShaderModule(device, "shaders/pass18_pick_best_candidate.wgsl", "pick best candidate (pass18)");
 #else
     pass1_idealEndpointsShader = prepareShaderModule(device, SHADER_DIR "/pass1_ideal_endpoints_and_weights.wgsl", "Ideal endpoints and weights (pass1)");
     pass2_decimatedWeightsShader = prepareShaderModule(device, SHADER_DIR "/pass2_decimated_weights.wgsl", "decimated weights (pass2)");
@@ -361,6 +450,12 @@ void ASTCEncoder::initPipelines() {
     pass11_bestEndpointCombinationsForModeShader_3part = prepareShaderModule(device, SHADER_DIR "/pass11_best_color_combination_for_mode_3part.wgsl", "best endpoint combinations for mode (pass11, 3part)");
     pass11_bestEndpointCombinationsForModeShader_4part = prepareShaderModule(device, SHADER_DIR "/pass11_best_color_combination_for_mode_4part.wgsl", "best endpoint combinations for mode (pass11, 4part)");
 	pass12_findTopNCandidatesShader = prepareShaderModule(device, SHADER_DIR "/pass12_find_top_N_candidates.wgsl", "find top N candidates (pass12)");
+	pass13_recomputeIdealEndpointsShader = prepareShaderModule(device, SHADER_DIR "/pass13_recompute_ideal_endpoints.wgsl", "recompute ideal endpoints (pass13)");
+    pass14_packColorEndpointsShader = prepareShaderModule(device, SHADER_DIR "/pass14_pack_color_endpoints.wgsl", "pack color endpoints (pass14)");
+    pass15_unpackColorEndpointsShader = prepareShaderModule(device, SHADER_DIR "/pass15_unpack_color_endpoints.wgsl", "unpack color endpoints (pass15)");
+    pass16_realignWeightsShader = prepareShaderModule(device, SHADER_DIR "/pass16_realign_weights.wgsl", "realign weights (pass16)");
+    pass17_computeFinalErrorShader = prepareShaderModule(device, SHADER_DIR "/pass17_compute_final_error.wgsl", "compute final error (pass17)");
+    pass18_pickBestCandidateShader = prepareShaderModule(device, SHADER_DIR "/pass18_pick_best_candidate.wgsl", "pick best candidate (pass18)");
 #endif
 
     //pass1 compute pipeline
@@ -624,7 +719,95 @@ void ASTCEncoder::initPipelines() {
 
     pass12_pipeline = device.CreateComputePipeline(&pass12_pipelineDesc);
 
+    //pass13 compute pipeline
+    wgpu::PipelineLayoutDescriptor pass13_layoutDesc = {};
+    pass13_layoutDesc.bindGroupLayoutCount = 1;
+    pass13_layoutDesc.bindGroupLayouts = &pass13_bindGroupLayout;
+    wgpu::PipelineLayout pass13_pipelineLayout = device.CreatePipelineLayout(&pass13_layoutDesc);
 
+    wgpu::ComputePipelineDescriptor pass13_pipelineDesc = {};
+    pass13_pipelineDesc.compute.constantCount = 0;
+    pass13_pipelineDesc.compute.constants = nullptr;
+    pass13_pipelineDesc.compute.entryPoint = "main";
+    pass13_pipelineDesc.compute.module = pass13_recomputeIdealEndpointsShader;
+    pass13_pipelineDesc.layout = pass13_pipelineLayout;
+
+    pass13_pipeline = device.CreateComputePipeline(&pass13_pipelineDesc);
+
+    //pass14 compute pipeline
+    wgpu::PipelineLayoutDescriptor pass14_layoutDesc = {};
+    pass14_layoutDesc.bindGroupLayoutCount = 1;
+    pass14_layoutDesc.bindGroupLayouts = &pass14_bindGroupLayout;
+    wgpu::PipelineLayout pass14_pipelineLayout = device.CreatePipelineLayout(&pass14_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass14_pipelineDesc = {};
+    pass14_pipelineDesc.compute.constantCount = 0;
+    pass14_pipelineDesc.compute.constants = nullptr;
+    pass14_pipelineDesc.compute.entryPoint = "main";
+    pass14_pipelineDesc.compute.module = pass14_packColorEndpointsShader;
+    pass14_pipelineDesc.layout = pass14_pipelineLayout;
+
+    pass14_pipeline = device.CreateComputePipeline(&pass14_pipelineDesc);
+
+    //pass15 compute pipeline
+    wgpu::PipelineLayoutDescriptor pass15_layoutDesc = {};
+    pass15_layoutDesc.bindGroupLayoutCount = 1;
+    pass15_layoutDesc.bindGroupLayouts = &pass15_bindGroupLayout;
+    wgpu::PipelineLayout pass15_pipelineLayout = device.CreatePipelineLayout(&pass15_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass15_pipelineDesc = {};
+    pass15_pipelineDesc.compute.constantCount = 0;
+    pass15_pipelineDesc.compute.constants = nullptr;
+    pass15_pipelineDesc.compute.entryPoint = "main";
+    pass15_pipelineDesc.compute.module = pass15_unpackColorEndpointsShader;
+    pass15_pipelineDesc.layout = pass15_pipelineLayout;
+
+    pass15_pipeline = device.CreateComputePipeline(&pass15_pipelineDesc);
+
+    //pass16 compute pipeline
+    wgpu::PipelineLayoutDescriptor pass16_layoutDesc = {};
+    pass16_layoutDesc.bindGroupLayoutCount = 1;
+    pass16_layoutDesc.bindGroupLayouts = &pass16_bindGroupLayout;
+    wgpu::PipelineLayout pass16_pipelineLayout = device.CreatePipelineLayout(&pass16_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass16_pipelineDesc = {};
+    pass16_pipelineDesc.compute.constantCount = 0;
+    pass16_pipelineDesc.compute.constants = nullptr;
+    pass16_pipelineDesc.compute.entryPoint = "main";
+    pass16_pipelineDesc.compute.module = pass16_realignWeightsShader;
+    pass16_pipelineDesc.layout = pass16_pipelineLayout;
+
+    pass16_pipeline = device.CreateComputePipeline(&pass16_pipelineDesc);
+
+    //pass17 compute pipeline
+    wgpu::PipelineLayoutDescriptor pass17_layoutDesc = {};
+    pass17_layoutDesc.bindGroupLayoutCount = 1;
+    pass17_layoutDesc.bindGroupLayouts = &pass17_bindGroupLayout;
+    wgpu::PipelineLayout pass17_pipelineLayout = device.CreatePipelineLayout(&pass17_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass17_pipelineDesc = {};
+    pass17_pipelineDesc.compute.constantCount = 0;
+    pass17_pipelineDesc.compute.constants = nullptr;
+    pass17_pipelineDesc.compute.entryPoint = "main";
+    pass17_pipelineDesc.compute.module = pass17_computeFinalErrorShader;
+    pass17_pipelineDesc.layout = pass17_pipelineLayout;
+
+    pass17_pipeline = device.CreateComputePipeline(&pass17_pipelineDesc);
+
+    //pass18 compute pipeline
+    wgpu::PipelineLayoutDescriptor pass18_layoutDesc = {};
+    pass18_layoutDesc.bindGroupLayoutCount = 1;
+    pass18_layoutDesc.bindGroupLayouts = &pass18_bindGroupLayout;
+    wgpu::PipelineLayout pass18_pipelineLayout = device.CreatePipelineLayout(&pass18_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass18_pipelineDesc = {};
+    pass18_pipelineDesc.compute.constantCount = 0;
+    pass18_pipelineDesc.compute.constants = nullptr;
+    pass18_pipelineDesc.compute.entryPoint = "main";
+    pass18_pipelineDesc.compute.module = pass18_pickBestCandidateShader;
+    pass18_pipelineDesc.layout = pass18_pipelineLayout;
+
+    pass18_pipeline = device.CreateComputePipeline(&pass18_pipelineDesc);
 }
 
 void ASTCEncoder::initBuffers() {
@@ -804,6 +987,30 @@ void ASTCEncoder::initBuffers() {
 	pass12Desc.usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc;
 	pass12Desc.size = numBlocks * block_descriptor.uniform_variables.tune_candidate_limit * sizeof(FinalCandidate);
 	pass12_output_finalCandidates = device.CreateBuffer(&pass12Desc);
+
+	//Output buffer of pass 13 (recomputed ideal endpoints)
+    wgpu::BufferDescriptor pass13Desc = {};
+    pass13Desc.usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc;
+    pass13Desc.size = numBlocks * block_descriptor.uniform_variables.tune_candidate_limit * BLOCK_MAX_PARTITIONS * 4 * sizeof(float);
+    pass13_output_rgbsVectors = device.CreateBuffer(&pass13Desc);
+
+    //Output buffer of pass 15 (unpacked endpoints)
+    wgpu::BufferDescriptor pass15Desc = {};
+    pass15Desc.usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc;
+    pass15Desc.size = numBlocks * block_descriptor.uniform_variables.tune_candidate_limit * sizeof(UnpackedEndpoints);
+    pass15_output_unpackedEndpoints = device.CreateBuffer(&pass15Desc);
+
+    //Output buffer of pass 17 (final errors)
+    wgpu::BufferDescriptor pass17Desc = {};
+    pass17Desc.usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc;
+    pass17Desc.size = numBlocks * block_descriptor.uniform_variables.tune_candidate_limit * sizeof(float);
+    pass17_output_finalErrors = device.CreateBuffer(&pass17Desc);
+
+    //Output buffer of pass 18 (symbolic blocks)
+    wgpu::BufferDescriptor pass18Desc = {};
+    pass18Desc.usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc;
+    pass18Desc.size = numBlocks * sizeof(SymbolicBlock);
+    pass18_output_symbolicBlocks = device.CreateBuffer(&pass18Desc);
 
     //Readback buffer for debuging (pass1)
     wgpu::BufferDescriptor readBackDesc = {};
@@ -1040,8 +1247,10 @@ void ASTCEncoder::initBindGroups() {
     bg12_entries.push_back({ .binding = 1, .buffer = blockModeTrialsBuffer, .offset = 0, .size = blockModeTrialsBuffer.GetSize() });
     bg12_entries.push_back({ .binding = 2, .buffer = modesPerBlockBuffer, .offset = 0, .size = modesPerBlockBuffer.GetSize() });
     bg12_entries.push_back({ .binding = 3, .buffer = blockModeTrialOffsetsBuffer, .offset = 0, .size = blockModeTrialOffsetsBuffer.GetSize() });
-    bg12_entries.push_back({ .binding = 4, .buffer = pass11_output_bestEndpointCombinationsForMode, .offset = 0, .size = pass11_output_bestEndpointCombinationsForMode.GetSize() });
-    bg12_entries.push_back({ .binding = 5, .buffer = pass12_output_finalCandidates, .offset = 0, .size = pass12_output_finalCandidates.GetSize() });
+    bg12_entries.push_back({ .binding = 4, .buffer = pass1_output_idealEndpointsAndWeights, .offset = 0, .size = pass1_output_idealEndpointsAndWeights.GetSize() });
+    bg12_entries.push_back({ .binding = 5, .buffer = pass7_output_quantizationResults, .offset = 0, .size = pass7_output_quantizationResults.GetSize() });
+    bg12_entries.push_back({ .binding = 6, .buffer = pass11_output_bestEndpointCombinationsForMode, .offset = 0, .size = pass11_output_bestEndpointCombinationsForMode.GetSize() });
+    bg12_entries.push_back({ .binding = 7, .buffer = pass12_output_finalCandidates, .offset = 0, .size = pass12_output_finalCandidates.GetSize() });
 
     wgpu::BindGroupDescriptor bg12_desc = {};
     bg12_desc.layout = pass12_bindGroupLayout;
@@ -1049,6 +1258,92 @@ void ASTCEncoder::initBindGroups() {
     bg12_desc.entries = bg12_entries.data();
     pass12_bindGroup = device.CreateBindGroup(&bg12_desc);
 
+	//bind group for pass13 (recompute ideal endpoints)
+	std::vector<wgpu::BindGroupEntry> bg13_entries;
+	bg13_entries.push_back({ .binding = 0, .buffer = uniformsBuffer, .offset = 0, .size = uniformsBuffer.GetSize() });
+    bg13_entries.push_back({ .binding = 1, .buffer = decimationInfoBuffer, .offset = 0, .size = decimationInfoBuffer.GetSize() });
+    bg13_entries.push_back({ .binding = 2, .buffer = texelToWeightMapBuffer, .offset = 0, .size = texelToWeightMapBuffer.GetSize() });
+    bg13_entries.push_back({ .binding = 3, .buffer = blockModesBuffer, .offset = 0, .size = blockModesBuffer.GetSize() });
+    bg13_entries.push_back({ .binding = 4, .buffer = inputBlocksBuffer, .offset = 0, .size = inputBlocksBuffer.GetSize() });
+	bg13_entries.push_back({ .binding = 5, .buffer = pass12_output_finalCandidates, .offset = 0, .size = pass12_output_finalCandidates.GetSize() });
+	bg13_entries.push_back({ .binding = 6, .buffer = pass13_output_rgbsVectors, .offset = 0, .size = pass13_output_rgbsVectors.GetSize() });
+
+	wgpu::BindGroupDescriptor bg13_desc = {};
+	bg13_desc.layout = pass13_bindGroupLayout;
+	bg13_desc.entryCount = bg13_entries.size();
+	bg13_desc.entries = bg13_entries.data();
+	pass13_bindGroup = device.CreateBindGroup(&bg13_desc);
+
+    //bind group for pass14 (pack color endpoints)
+    std::vector<wgpu::BindGroupEntry> bg14_entries;
+    bg14_entries.push_back({ .binding = 0, .buffer = uniformsBuffer, .offset = 0, .size = uniformsBuffer.GetSize() });
+    bg14_entries.push_back({ .binding = 1, .buffer = pass13_output_rgbsVectors, .offset = 0, .size = pass13_output_rgbsVectors.GetSize() });
+    bg14_entries.push_back({ .binding = 2, .buffer = pass12_output_finalCandidates, .offset = 0, .size = pass12_output_finalCandidates.GetSize() });
+
+    wgpu::BindGroupDescriptor bg14_desc = {};
+    bg14_desc.layout = pass14_bindGroupLayout;
+    bg14_desc.entryCount = bg14_entries.size();
+    bg14_desc.entries = bg14_entries.data();
+    pass14_bindGroup = device.CreateBindGroup(&bg14_desc);
+
+    //bind group for pass15 (unpack color endpoints)
+    std::vector<wgpu::BindGroupEntry> bg15_entries;
+    bg15_entries.push_back({ .binding = 0, .buffer = uniformsBuffer, .offset = 0, .size = uniformsBuffer.GetSize() });
+    bg15_entries.push_back({ .binding = 1, .buffer = pass12_output_finalCandidates, .offset = 0, .size = pass12_output_finalCandidates.GetSize() });
+    bg15_entries.push_back({ .binding = 2, .buffer = pass15_output_unpackedEndpoints, .offset = 0, .size = pass15_output_unpackedEndpoints.GetSize() });
+
+    wgpu::BindGroupDescriptor bg15_desc = {};
+    bg15_desc.layout = pass15_bindGroupLayout;
+    bg15_desc.entryCount = bg15_entries.size();
+    bg15_desc.entries = bg15_entries.data();
+    pass15_bindGroup = device.CreateBindGroup(&bg15_desc);
+
+    //bind group for pass16 (realign weights)
+    std::vector<wgpu::BindGroupEntry> bg16_entries;
+    bg16_entries.push_back({ .binding = 0, .buffer = uniformsBuffer, .offset = 0, .size = uniformsBuffer.GetSize() });
+    bg16_entries.push_back({ .binding = 1, .buffer = blockModesBuffer, .offset = 0, .size = blockModesBuffer.GetSize() });
+    bg16_entries.push_back({ .binding = 2, .buffer = decimationInfoBuffer, .offset = 0, .size = decimationInfoBuffer.GetSize() });
+    bg16_entries.push_back({ .binding = 3, .buffer = texelToWeightMapBuffer, .offset = 0, .size = texelToWeightMapBuffer.GetSize() });
+    bg16_entries.push_back({ .binding = 4, .buffer = weightToTexelMapBuffer, .offset = 0, .size = weightToTexelMapBuffer.GetSize() });
+    bg16_entries.push_back({ .binding = 5, .buffer = inputBlocksBuffer, .offset = 0, .size = inputBlocksBuffer.GetSize() });
+    bg16_entries.push_back({ .binding = 6, .buffer = pass15_output_unpackedEndpoints, .offset = 0, .size = pass15_output_unpackedEndpoints.GetSize() });
+    bg16_entries.push_back({ .binding = 7, .buffer = pass12_output_finalCandidates, .offset = 0, .size = pass12_output_finalCandidates.GetSize() });
+
+    wgpu::BindGroupDescriptor bg16_desc = {};
+    bg16_desc.layout = pass16_bindGroupLayout;
+    bg16_desc.entryCount = bg16_entries.size();
+    bg16_desc.entries = bg16_entries.data();
+    pass16_bindGroup = device.CreateBindGroup(&bg16_desc);
+
+    //bind group for pass17 (compute final error)
+    std::vector<wgpu::BindGroupEntry> bg17_entries;
+    bg17_entries.push_back({ .binding = 0, .buffer = uniformsBuffer, .offset = 0, .size = uniformsBuffer.GetSize() });
+    bg17_entries.push_back({ .binding = 1, .buffer = blockModesBuffer, .offset = 0, .size = blockModesBuffer.GetSize() });
+    bg17_entries.push_back({ .binding = 2, .buffer = decimationInfoBuffer, .offset = 0, .size = decimationInfoBuffer.GetSize() });
+    bg17_entries.push_back({ .binding = 3, .buffer = texelToWeightMapBuffer, .offset = 0, .size = texelToWeightMapBuffer.GetSize() });
+    bg17_entries.push_back({ .binding = 4, .buffer = inputBlocksBuffer, .offset = 0, .size = inputBlocksBuffer.GetSize() });
+    bg17_entries.push_back({ .binding = 5, .buffer = pass12_output_finalCandidates, .offset = 0, .size = pass12_output_finalCandidates.GetSize() });
+    bg17_entries.push_back({ .binding = 6, .buffer = pass15_output_unpackedEndpoints, .offset = 0, .size = pass15_output_unpackedEndpoints.GetSize() });
+    bg17_entries.push_back({ .binding = 7, .buffer = pass17_output_finalErrors, .offset = 0, .size = pass17_output_finalErrors.GetSize() });
+
+    wgpu::BindGroupDescriptor bg17_desc = {};
+    bg17_desc.layout = pass17_bindGroupLayout;
+    bg17_desc.entryCount = bg17_entries.size();
+    bg17_desc.entries = bg17_entries.data();
+    pass17_bindGroup = device.CreateBindGroup(&bg17_desc);
+
+    //bind group for pass18 (pick best candidate)
+    std::vector<wgpu::BindGroupEntry> bg18_entries;
+    bg18_entries.push_back({ .binding = 0, .buffer = uniformsBuffer, .offset = 0, .size = uniformsBuffer.GetSize() });
+    bg18_entries.push_back({ .binding = 1, .buffer = pass12_output_finalCandidates, .offset = 0, .size = pass12_output_finalCandidates.GetSize() });
+    bg18_entries.push_back({ .binding = 2, .buffer = pass17_output_finalErrors, .offset = 0, .size = pass17_output_finalErrors.GetSize() });
+    bg18_entries.push_back({ .binding = 3, .buffer = pass18_output_symbolicBlocks, .offset = 0, .size = pass18_output_symbolicBlocks.GetSize() });
+
+    wgpu::BindGroupDescriptor bg18_desc = {};
+    bg18_desc.layout = pass18_bindGroupLayout;
+    bg18_desc.entryCount = bg18_entries.size();
+    bg18_desc.entries = bg18_entries.data();
+    pass18_bindGroup = device.CreateBindGroup(&bg18_desc);
 }
 
 void ASTCEncoder::encode(uint8_t* imageData) {
@@ -1092,6 +1387,7 @@ void ASTCEncoder::encode(uint8_t* imageData) {
 
     int decimation_mode_trials_num = decimation_mode_trials.size();
     int block_mode_trials_num = block_mode_trials.size();
+    int numCandidates = block_descriptor.uniform_variables.tune_candidate_limit;
 
     // Command encoder
     wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
@@ -1134,14 +1430,14 @@ void ASTCEncoder::encode(uint8_t* imageData) {
         wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
         pass.SetPipeline(pass6_pipeline);
         pass.SetBindGroup(0, pass6_bindGroup, 0, nullptr);
-        pass.DispatchWorkgroups(block_mode_trials_num, 1, 1); //run shader for each (block, deciamtion_mode) pair from decimation_mode_trials
+        pass.DispatchWorkgroups(block_mode_trials_num, 1, 1); //run shader for each (block, block_mode) pair from block_mode_trials
         pass.End();
     }
     {
         wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
         pass.SetPipeline(pass7_pipeline);
         pass.SetBindGroup(0, pass7_bindGroup, 0, nullptr);
-        pass.DispatchWorkgroups(block_mode_trials_num, 1, 1); //run shader for each (block, deciamtion_mode) pair from decimation_mode_trials
+        pass.DispatchWorkgroups(block_mode_trials_num, 1, 1); //run shader for each (block, block_mode) pair from block_mode_trials
         pass.End();
     }
     {
@@ -1162,13 +1458,55 @@ void ASTCEncoder::encode(uint8_t* imageData) {
         wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
         pass.SetPipeline(pass11_pipeline_1part);
         pass.SetBindGroup(0, pass11_bindGroup_1part, 0, nullptr);
-        pass.DispatchWorkgroups(block_mode_trials_num, 1, 1); //run shader for each (block, deciamtion_mode) pair from decimation_mode_trials
+        pass.DispatchWorkgroups(block_mode_trials_num, 1, 1); //run shader for each (block, block_mode) pair from block_mode_trials
         pass.End();
     }
     {
         wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
         pass.SetPipeline(pass12_pipeline);
         pass.SetBindGroup(0, pass12_bindGroup, 0, nullptr);
+        pass.DispatchWorkgroups(numBlocks, 1, 1); //run shader for each block
+        pass.End();
+    }
+	{
+		wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
+		pass.SetPipeline(pass13_pipeline);
+		pass.SetBindGroup(0, pass13_bindGroup, 0, nullptr);
+		pass.DispatchWorkgroups(numBlocks * numCandidates, 1, 1); //run shader for each final candidate
+		pass.End();
+	}
+	{
+		wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
+		pass.SetPipeline(pass14_pipeline);
+		pass.SetBindGroup(0, pass14_bindGroup, 0, nullptr);
+		pass.DispatchWorkgroups(numBlocks * numCandidates, 1, 1); //run shader for each final candidate
+		pass.End();
+	}
+    {
+        wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
+        pass.SetPipeline(pass15_pipeline);
+        pass.SetBindGroup(0, pass15_bindGroup, 0, nullptr);
+        pass.DispatchWorkgroups(numBlocks * numCandidates, 1, 1); //run shader for each final candidate
+        pass.End();
+    }
+    {
+        wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
+        pass.SetPipeline(pass16_pipeline);
+        pass.SetBindGroup(0, pass16_bindGroup, 0, nullptr);
+        pass.DispatchWorkgroups(numBlocks * numCandidates, 1, 1); //run shader for each final candidate
+        pass.End();
+    }
+    {
+        wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
+        pass.SetPipeline(pass17_pipeline);
+        pass.SetBindGroup(0, pass17_bindGroup, 0, nullptr);
+        pass.DispatchWorkgroups(numBlocks * numCandidates, 1, 1); //run shader for each final candidate
+        pass.End();
+    }
+    {
+        wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
+        pass.SetPipeline(pass18_pipeline);
+        pass.SetBindGroup(0, pass18_bindGroup, 0, nullptr);
         pass.DispatchWorkgroups(numBlocks, 1, 1); //run shader for each block
         pass.End();
     }

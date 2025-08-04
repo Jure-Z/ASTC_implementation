@@ -1,55 +1,6 @@
 #include "astc.h"
 
 
-struct ise_size
-{
-	uint8_t scale : 6;
-	uint8_t divisor : 2;
-};
-
-
-static const std::array<ise_size, 21> ise_sizes{ {
-	{  1, 0 }, // QUANT_2
-	{  8, 2 }, // QUANT_3
-	{  2, 0 }, // QUANT_4
-	{  7, 1 }, // QUANT_5
-	{ 13, 2 }, // QUANT_6
-	{  3, 0 }, // QUANT_8
-	{ 10, 1 }, // QUANT_10
-	{ 18, 2 }, // QUANT_12
-	{  4, 0 }, // QUANT_16
-	{ 13, 1 }, // QUANT_20
-	{ 23, 2 }, // QUANT_24
-	{  5, 0 }, // QUANT_32
-	{ 16, 1 }, // QUANT_40
-	{ 28, 2 }, // QUANT_48
-	{  6, 0 }, // QUANT_64
-	{ 19, 1 }, // QUANT_80
-	{ 33, 2 }, // QUANT_96
-	{  7, 0 }, // QUANT_128
-	{ 22, 1 }, // QUANT_160
-	{ 38, 2 }, // QUANT_192
-	{  8, 0 }  // QUANT_256
-} };
-
-
-unsigned int get_ise_sequence_bitcount(
-	unsigned int character_count,
-	quant_method quant_level
-) {
-	// Cope with out-of bounds values - input might be invalid
-	if (static_cast<size_t>(quant_level) >= ise_sizes.size())
-	{
-		// Arbitrary large number that's more than an ASTC block can hold
-		return 1024;
-	}
-
-	auto& entry = ise_sizes[quant_level];
-	unsigned int divisor = (entry.divisor << 1) + 1;
-	return (entry.scale * character_count + divisor - 1) / divisor;
-}
-
-
 static bool decode_block_mode_2d(
 	unsigned int block_mode,
 	unsigned int& x_weights,

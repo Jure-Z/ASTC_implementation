@@ -1,4 +1,6 @@
 const WORKGROUP_SIZE: u32 = 64u;
+const BLOCK_MAX_TEXELS: u32 = 144u;
+const BLOCK_MAX_WEIGHTS: u32 = 64u;
 
 const TUNE_MAX_TRIAL_CANDIDATES = 8u;
 const ERROR_CALC_DEFAULT: f32 = 1e37;
@@ -28,6 +30,35 @@ struct BlockModeTrial {
     _padding1 : u32,
 };
 
+struct IdealEndpointsAndWeightsPartition {
+    avg: vec4<f32>,
+    dir: vec4<f32>,
+    endpoint0: vec4<f32>,
+    endpoint1: vec4<f32>,
+};
+
+struct IdealEndpointsAndWeights {
+    partitions: array<IdealEndpointsAndWeightsPartition, 4>,
+    weights: array<f32, BLOCK_MAX_TEXELS>,
+
+    weight_error_scale: array<f32, BLOCK_MAX_TEXELS>,
+
+    is_constant_weight_error_scale : u32,
+    min_weight_cuttof : f32,
+    _padding1 : u32,
+    _padding2 : u32,
+};
+
+struct QuantizationResult {
+    error: f32,
+    bitcount: i32,
+
+    _padding1: u32,
+    _padding2: u32,
+
+    quantized_weights: array<u32, BLOCK_MAX_WEIGHTS>,
+};
+
 struct ColorCombinationResult {
     total_error: f32,
     best_quant_level: u32,
@@ -47,14 +78,21 @@ struct FinalCandidate {
     block_mode_index: u32,
     block_mode_trial_index: u32,
     total_error: f32,
-    quant_level: u32,
+    quant_level: u32, // The original quant level
     quant_level_mod: u32,
 
     _padding1: u32,
-    _padding2: u32,
-    _padding3: u32,
+
+	color_formats_matched: u32,
+    final_quant_mode: u32, // The quant mode after checking the mod version
 
     formats: vec4<u32>,
+    quantized_weights: array<u32, BLOCK_MAX_WEIGHTS>,
+    candidate_partitions: array<IdealEndpointsAndWeightsPartition, 4>,
+
+	final_formats: vec4<u32>,
+	//8 integers per partition
+    packed_color_values: array<u32, 32>,
 };
 
 
@@ -62,9 +100,11 @@ struct FinalCandidate {
 @group(0) @binding(1) var<storage, read> block_mode_trials: array<BlockModeTrial>;
 @group(0) @binding(2) var<storage, read> modes_per_block: array<u32>;
 @group(0) @binding(3) var<storage, read> block_mode_trial_offsets: array<u32>;
-@group(0) @binding(4) var<storage, read> color_combination_results: array<ColorCombinationResult>;
+@group(0) @binding(4) var<storage, read> ideal_endpoints_and_weights: array<IdealEndpointsAndWeights>;
+@group(0) @binding(5) var<storage, read> quantization_results: array<QuantizationResult>;
+@group(0) @binding(6) var<storage, read> color_combination_results: array<ColorCombinationResult>;
 
-@group(0) @binding(5) var<storage, read_write> output_final_candidates: array<FinalCandidate>;
+@group(0) @binding(7) var<storage, read_write> output_final_candidates: array<FinalCandidate>;
 
 
 var<workgroup> topCandidates: array<SortItem, TUNE_MAX_TRIAL_CANDIDATES>;
@@ -120,6 +160,9 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
 			(*out_ptr).quant_level = winning_candidate.best_quant_level;
 			(*out_ptr).quant_level_mod = winning_candidate.best_quant_level_mod;
 			(*out_ptr).formats = winning_candidate.best_ep_formats;
+
+            (*out_ptr).quantized_weights = quantization_results[trial_idx].quantized_weights;
+            (*out_ptr).candidate_partitions = ideal_endpoints_and_weights[block_idx].partitions;
         }
 	}
 }
