@@ -852,7 +852,8 @@ void symbolic_to_physical(
 	//encoded as an ordianry integer sequence and then bit-reversed
 	uint8_t weightbuf[16]{ 0 };
 
-	block_mode bm = block_descriptor.block_modes[symbolic_compressed_block.block_mode_index];
+	unsigned int packed_bm_idx = block_descriptor.block_mode_index[symbolic_compressed_block.block_mode_index];
+	block_mode bm = block_descriptor.block_modes[packed_bm_idx];
 	decimation_info di = block_descriptor.decimation_info_metadata[bm.decimation_mode];
 	int weight_count = di.weight_count;
 	quant_method weight_quant_method = static_cast<quant_method>(bm.quant_mode);

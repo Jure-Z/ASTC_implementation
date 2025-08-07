@@ -45,6 +45,18 @@ struct FinalCandidate {
     packed_color_values: array<u32, 32>, //8 integers per partition
 };
 
+struct BlockMode {
+	mode_index : u32,
+    decimation_mode : u32,
+    quant_mode : u32,
+    weight_bits : u32,
+    is_dual_plane : u32,
+
+    _padding1 : u32,
+    _padding2 : u32,
+    _padding3 : u32,
+};
+
 struct SymbolicBlock {
     errorval: f32,
 
@@ -70,8 +82,9 @@ struct SymbolicBlock {
 @group(0) @binding(0) var<uniform> uniforms: UniformVariables;
 @group(0) @binding(1) var<storage, read> final_candidates: array<FinalCandidate>;
 @group(0) @binding(2) var<storage, read> final_errors: array<f32>;
+@group(0) @binding(3) var<storage, read> block_modes: array<BlockMode>;
 
-@group(0) @binding(3) var<storage, read_write> output_symbolic_blocks: array<SymbolicBlock>;
+@group(0) @binding(4) var<storage, read_write> output_symbolic_blocks: array<SymbolicBlock>;
 
 @compute @workgroup_size(1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
@@ -95,7 +108,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let out_ptr = &output_symbolic_blocks[block_idx];
 
     (*out_ptr).errorval = best_error;
-    (*out_ptr).block_mode_index = winner.block_mode_index;
+    (*out_ptr).block_mode_index = block_modes[winner.block_mode_index].mode_index;
     (*out_ptr).partition_count = 1u; // Placeholder
     (*out_ptr).partition_index = 0u; // Placeholder
     (*out_ptr).quant_mode = winner.final_quant_mode;

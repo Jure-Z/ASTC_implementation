@@ -1,5 +1,73 @@
 #include "astc.h"
 
+static inline uint64_t rotl(uint64_t val, int count)
+{
+	return (val << count) | (val >> (64 - count));
+}
+
+void rand_init(uint64_t state[2])
+{
+	state[0] = 0xfaf9e171cea1ec6bULL;
+	state[1] = 0xf1b318cc06af5d71ULL;
+}
+
+uint64_t rand(uint64_t state[2])
+{
+	uint64_t s0 = state[0];
+	uint64_t s1 = state[1];
+	uint64_t res = s0 + s1;
+	s1 ^= s0;
+	state[0] = rotl(s0, 24) ^ s1 ^ (s1 << 16);
+	state[1] = rotl(s1, 37);
+	return res;
+}
+
+/**
+ * @brief Assign the texels to use for kmeans clustering.
+ *
+ * The max limit is @c BLOCK_MAX_KMEANS_TEXELS; above this a random selection is used.
+ * The @c bsd.texel_count is an input and must be populated beforehand.
+ *
+ * @param[in,out] bsd   The block size descriptor to populate.
+ */
+static void assign_kmeans_texels(
+	block_descriptor& block_descriptor
+) {
+	// Use all texels for kmeans on a small block
+	if (block_descriptor.uniform_variables.texel_count <= BLOCK_MAX_KMEANS_TEXELS)
+	{
+		for (uint8_t i = 0; i < block_descriptor.uniform_variables.texel_count; i++)
+		{
+			block_descriptor.kmeans_texels[i] = i;
+		}
+
+		return;
+	}
+
+	// Select a random subset of BLOCK_MAX_KMEANS_TEXELS for kmeans on a large block
+	uint64_t rng_state[2];
+	rand_init(rng_state);
+
+	// Initialize array used for tracking used indices
+	bool seen[BLOCK_MAX_TEXELS];
+	for (uint8_t i = 0; i < block_descriptor.uniform_variables.texel_count; i++)
+	{
+		seen[i] = false;
+	}
+
+	// Assign 64 random indices, retrying if we see repeats
+	unsigned int arr_elements_set = 0;
+	while (arr_elements_set < BLOCK_MAX_KMEANS_TEXELS)
+	{
+		uint8_t texel = static_cast<uint8_t>(rand(rng_state));
+		texel = texel % block_descriptor.uniform_variables.texel_count;
+		if (!seen[texel])
+		{
+			block_descriptor.kmeans_texels[arr_elements_set++] = texel;
+			seen[texel] = true;
+		}
+	}
+}
 
 static bool decode_block_mode_2d(
 	unsigned int block_mode,
@@ -385,6 +453,9 @@ void construct_metadata_structures(
 		block_descriptor.decimation_modes[i].refprec_1plane = 0;
 		block_descriptor.decimation_modes[i].refprec_2planes = 0;
 	}
+
+	// Determine the texels to use for kmeans clustering.
+	assign_kmeans_texels(block_descriptor);
 
 	delete wb;
 }

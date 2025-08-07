@@ -31,6 +31,13 @@ struct Pixel {
 struct InputBlock {
     pixels: array<Pixel, BLOCK_MAX_TEXELS>,
     partition_pixel_counts: array<u32, 4>,
+    data_min: vec4<f32>,
+    data_max: vec4<f32>,
+
+    grayscale: u32,
+    partitioning_idx: u32,
+    xpos: u32,
+    ypos: u32,
 };
 
 struct IdealEndpointsAndWeightsPartition {
@@ -207,8 +214,10 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
     //Prepare processed lines for different endpoint encodings
     if(local_idx < partitionCount) {
         let p = local_idx;
-        let avg = averages[p];
-        let dir = directions[p];
+        //let avg = averages[p];
+        //let dir = directions[p];
+        let avg = vec4<f32>(ideal_endpoints_and_weights_block.partitions[p].avg.xyz, 0.0);
+        let dir = vec4<f32>(ideal_endpoints_and_weights_block.partitions[p].dir.xyz, 0.0);
 
         //Uncorrelated RGB line
         let uncor_b = normalize(dir);

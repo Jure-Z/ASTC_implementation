@@ -1,4 +1,4 @@
-#pragma once
+#include <iostream>
 
 #include <webgpu/webgpu.h>
 #include <webgpu/webgpu_cpp.h>

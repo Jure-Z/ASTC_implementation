@@ -155,7 +155,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var best_integer_count_idx = 0u;
     var best_integer_count_error = ERROR_CALC_DEFAULT;
 
-    let integer_count_error_idx_base = (block_idx * BLOCK_MAX_PARTITIONS + 0u) * NUM_QUANT_LEVELS;
+    let integer_count_error_idx_base = (block_idx * uniforms.partition_count + 0u) * NUM_QUANT_LEVELS;
 
     //Loop through 4 integer counts (2,4,6,8)
     for(var int_count_idx = 1u; int_count_idx <= 4u; int_count_idx = int_count_idx + 1u) {

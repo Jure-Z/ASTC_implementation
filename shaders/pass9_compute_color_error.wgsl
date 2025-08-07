@@ -75,6 +75,13 @@ struct Pixel {
 struct InputBlock {
     pixels: array<Pixel, BLOCK_MAX_TEXELS>,
     partition_pixel_counts: array<u32, 4>,
+    data_min: vec4<f32>,
+    data_max: vec4<f32>,
+
+    grayscale: u32,
+    partitioning_idx: u32,
+    xpos: u32,
+    ypos: u32,
 };
 
 struct IdealEndpointsAndWeightsPartition {
@@ -139,7 +146,7 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
     //precomputation
     if(local_idx < partition_count) {
         let p = local_idx;
-        let part_global_idx = block_idx * BLOCK_MAX_PARTITIONS + p;
+        let part_global_idx = block_idx * uniforms.partition_count + p;
 
         let ep0 = ideal_endpoints_and_weights[block_idx].partitions[p].endpoint0;
         let ep1 = ideal_endpoints_and_weights[block_idx].partitions[p].endpoint1;
@@ -195,7 +202,7 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
         let quant_idx = i + 4u; //start at QUANT_6
 
         for(var p = 0u; p < partition_count; p += 1u) {
-			let part_global_idx = block_idx * BLOCK_MAX_PARTITIONS + p;
+			let part_global_idx = block_idx * uniforms.partition_count + p;
             let eci = encoding_choice_errors[part_global_idx];
 
             //get precomputed values from shared memory

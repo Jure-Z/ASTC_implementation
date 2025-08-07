@@ -80,7 +80,8 @@ fn main(
 
     //precompute the sample indices
     for (var i = local_idx; i < num_weights; i += WORKGROUP_SIZE) {
-        let ideal_weight_base_idx = (block_idx * uniforms.decimation_mode_count + mode_idx) * BLOCK_MAX_WEIGHTS;
+        //let ideal_weight_base_idx = (block_idx * uniforms.decimation_mode_count + mode_idx) * BLOCK_MAX_WEIGHTS;
+        let ideal_weight_base_idx = decimation_mode_trial_idx * BLOCK_MAX_WEIGHTS;
         let ideal_weight = ideal_decimated_weights[ideal_weight_base_idx + i];
         let sample = clamp(ideal_weight, 0.0, 1.0) * (SINCOS_STEPS - 1.0);
         shared_isamples[i] = u32(round(sample));

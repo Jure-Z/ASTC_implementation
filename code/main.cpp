@@ -15,6 +15,7 @@
 
 #include "webgpu_utils.h"
 #include "astc.h"
+#include "astc_store.h"
 
 using namespace wgpu;
 
@@ -109,9 +110,20 @@ int main(int, char**) {
     ImageData image = LoadImageRGBA(TEST_IMAGE_DIR "/image1.jpg");
 #endif
 
+	unsigned int blockXDim = 10;
+	unsigned int blockYDim = 10;
     
-	ASTCEncoder* encoder = new ASTCEncoder(device, image.width, image.height, 10, 10);
-	encoder->encode(image.pixels);
+	ASTCEncoder* encoder = new ASTCEncoder(device, image.width, image.height, blockXDim, blockYDim);
+
+	unsigned int blocksX = encoder->blocksX;
+	unsigned int blocksY = encoder->blocksY;
+	size_t dataLen = blocksX * blocksY * 16; //number of blocks * 128 bits
+
+	uint8_t* dataOut = new uint8_t[dataLen];
+
+	encoder->encode(image.pixels, dataOut, dataLen);
+
+	store_image(blockXDim, blockYDim, image.width, image.height, dataOut, dataLen, TEST_IMAGE_DIR "/imageOut.astc");
 
     FreeImage(image);
 

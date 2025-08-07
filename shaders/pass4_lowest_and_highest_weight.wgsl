@@ -53,9 +53,9 @@ struct HighestAndLowestWeight {
     cut_low_error : f32,
     cut_high_error : f32,
 
-    _padding1 : f32,
-    _padding2 : f32,
-    _padding3 : f32,
+    _padding1 : u32,
+    _padding2 : u32,
+    _padding3 : u32,
 };
 
 

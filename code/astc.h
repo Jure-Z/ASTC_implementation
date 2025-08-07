@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cstdint>
 #include <vector>
 #include <cstddef>
@@ -18,6 +20,8 @@ const unsigned int BLOCK_MAX_COMPONENTS = 4;
 const unsigned int BLOCK_MAX_PARTITIONS = 4;
 
 const unsigned int BLOCK_MAX_PARTITIONINGS = 1024;
+
+const unsigned int TUNE_MAX_PARTITIONING_CANDIDATES = 8;
 
 const unsigned int BLOCK_MAX_WEIGHTS = 64;
 
@@ -57,6 +61,13 @@ const unsigned int NUM_INT_COUNTS = 4; //(2, 4, 6 and 8)
 const unsigned int MAX_INT_COUNT_COMBINATIONS = 13; //4 partitions, int count can only differ by 1 step
 
 const unsigned int TUNE_MAX_TRIAL_CANDIDATES = 8; //The maximum number of candidate encodings tested for each encoding mode
+
+//The maximum number of texels used during partition selection for texel clustering
+const unsigned int BLOCK_MAX_KMEANS_TEXELS = 64;
+
+const float ERROR_CALC_DEFAULT = 1e30f;
+
+static constexpr uint16_t BLOCK_BAD_PARTITIONING = 0xFFFFu;
 
 enum quant_method
 {
@@ -260,6 +271,14 @@ struct alignas(16) uniform_variables {
 	float channel_weights[4];
 };
 
+struct partition_info {
+	uint16_t partition_count;
+	uint16_t partition_index;
+	uint8_t partition_texel_count[BLOCK_MAX_PARTITIONS];
+	uint8_t partition_of_texel[BLOCK_MAX_TEXELS];
+	uint8_t texels_of_partition[BLOCK_MAX_PARTITIONS][BLOCK_MAX_TEXELS];
+};
+
 /**
  * @brief holds the combined metadata used in the compression of a block
  */
@@ -276,6 +295,81 @@ struct block_descriptor {
 
 	uint32_t block_mode_index[WEIGHTS_MAX_BLOCK_MODES];
 
+
+	partition_info partitionings[(3 * BLOCK_MAX_PARTITIONINGS) + 1];
+	uint16_t partitioning_packed_index[3][BLOCK_MAX_PARTITIONINGS];
+
+	/** @brief The active texels for k-means partition selection. */
+	uint8_t kmeans_texels[BLOCK_MAX_KMEANS_TEXELS];
+
+	/** @brief The number of selected partitionings for 1/2/3/4 partitionings. */
+	unsigned int partitioning_count_selected[BLOCK_MAX_PARTITIONS];
+
+	/** @brief The number of partitionings for 1/2/3/4 partitionings. */
+	unsigned int partitioning_count_all[BLOCK_MAX_PARTITIONS];
+
+	/**
+	 * @brief The canonical partition coverage pattern used during block partition search.
+	 *
+	 * Indexed by remapped index, not physical index.
+	 */
+	uint64_t coverage_bitmaps_2[BLOCK_MAX_PARTITIONINGS][2];
+	uint64_t coverage_bitmaps_3[BLOCK_MAX_PARTITIONINGS][3];
+	uint64_t coverage_bitmaps_4[BLOCK_MAX_PARTITIONINGS][4];
+
+	/**
+	 * @brief Get the partition info table for a given partition count.
+	 *
+	 * @param partition_count   The number of partitions we want the table for.
+	 *
+	 * @return The pointer to the table of 1024 entries (for 2/3/4 parts) or 1 entry (for 1 part).
+	 */
+	const partition_info* get_partition_table(unsigned int partition_count) const
+	{
+		if (partition_count == 1)
+		{
+			partition_count = 5;
+		}
+		unsigned int index = (partition_count - 2) * BLOCK_MAX_PARTITIONINGS;
+		return this->partitionings + index;
+	}
+
+	/**
+	 * @brief Get the partition info structure for a given partition count and seed.
+	 *
+	 * @param partition_count   The number of partitions we want the info for.
+	 * @param index             The partition seed (between 0 and 1023).
+	 *
+	 * @return The partition info structure.
+	 */
+	const partition_info& get_partition_info(unsigned int partition_count, unsigned int index) const
+	{
+		unsigned int packed_index = 0;
+		if (partition_count >= 2)
+		{
+			packed_index = this->partitioning_packed_index[partition_count - 2][index];
+		}
+
+		assert(packed_index != BLOCK_BAD_PARTITIONING && packed_index < this->partitioning_count_all[partition_count - 1]);
+		auto& result = get_partition_table(partition_count)[packed_index];
+		assert(index == result.partition_index);
+		return result;
+	}
+
+	/**
+	 * @brief Get the partition info structure for a given partition count and seed.
+	 *
+	 * @param partition_count   The number of partitions we want the info for.
+	 * @param packed_index      The raw array offset.
+	 *
+	 * @return The partition info structure.
+	 */
+	const partition_info& get_raw_partition_info(unsigned int partition_count, unsigned int packed_index) const
+	{
+		assert(packed_index != BLOCK_BAD_PARTITIONING && packed_index < this->partitioning_count_all[partition_count - 1]);
+		auto& result = get_partition_table(partition_count)[packed_index];
+		return result;
+	}
 };
 
 /**
@@ -372,6 +466,15 @@ void construct_metadata_structures(
 	block_descriptor& block_descriptor
 );
 
+/**
+ * @brief Populate the partition tables for the target block size.
+ */
+void init_partition_tables(
+	block_descriptor& block_descriptor,
+	bool can_omit_partitionings,
+	unsigned int partition_count_cutoff
+);
+
 
 /**
  * @brief Construct sin and cos tables for use in shaders
@@ -397,6 +500,13 @@ struct alignas(16) Pixel {
 struct alignas(16) InputBlock {
 	Pixel pixels[BLOCK_MAX_TEXELS];
 	uint32_t partition_pixel_counts[BLOCK_MAX_PARTITIONS];
+	float data_min[4];
+	float data_max[4];
+
+	uint32_t grayscale;
+	uint32_t partitioning_idx;
+	uint32_t xpos;
+	uint32_t ypos;
 };
 
 //pass1_output_idealEndpointsAndWeights structs
@@ -569,6 +679,15 @@ std::vector<InputBlock> SplitImageIntoBlocks(
 	int blockHeight
 );
 
+unsigned int find_best_partition_candidates(
+	const block_descriptor& block_descriptor,
+	const InputBlock& blk,
+	unsigned int partition_count,
+	unsigned int partition_search_limit,
+	unsigned int best_partitions[TUNE_MAX_PARTITIONING_CANDIDATES],
+	unsigned int requested_candidates
+);
+
 /**
  * @brief Encode a packed string using BISE.
  *
@@ -601,7 +720,11 @@ public:
 
 	~ASTCEncoder();
 
-	void encode(uint8_t* imageData);
+	void encode(uint8_t* imageData, uint8_t* dataOut, size_t dataLen);
+
+	uint32_t numBlocks;
+	uint32_t blocksX;
+	uint32_t blocksY;
 
 private:
 	void initMetadata();
@@ -618,9 +741,6 @@ private:
 	std::vector<float> sin_table; //precomputed sine values
 	std::vector<float> cos_table; //precomputed cosine values
 
-	uint32_t numBlocks;
-	uint32_t blocksX;
-	uint32_t blocksY;
 	uint32_t textureWidth;
 	uint32_t textureHeight;
 	uint8_t blockXDim;
@@ -752,6 +872,8 @@ private:
 	wgpu::Buffer readbackBuffer10;
 	wgpu::Buffer readbackBuffer11;
 	wgpu::Buffer readbackBuffer12;
+
+	wgpu::Buffer outputReadbackBuffer;
 
 	//Bind Groups
 	wgpu::BindGroup pass1_bindGroup;

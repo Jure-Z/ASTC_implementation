@@ -54,8 +54,8 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
     workgroupBarrier();
 
     //For every quant level, find the best color format combinatoin for every integer count
-    let p0_error_base = (block_idx * BLOCK_MAX_PARTITIONS + 0u) * NUM_QUANT_LEVELS * NUM_INT_COUNTS;
-    let p1_error_base = (block_idx * BLOCK_MAX_PARTITIONS + 1u) * NUM_QUANT_LEVELS * NUM_INT_COUNTS;
+    let p0_error_base = (block_idx * uniforms.partition_count + 0u) * NUM_QUANT_LEVELS * NUM_INT_COUNTS;
+    let p1_error_base = (block_idx * uniforms.partition_count + 1u) * NUM_QUANT_LEVELS * NUM_INT_COUNTS;
 
     if(local_idx < (NUM_QUANT_LEVELS - 4)) { //QUANT_6 = 4
         let quant_level = local_idx + 4u; //Start from QUANT_6

@@ -59,6 +59,13 @@ struct Pixel {
 struct InputBlock {
     pixels: array<Pixel, BLOCK_MAX_TEXELS>,
     partition_pixel_counts: array<u32, 4>,
+    data_min: vec4<f32>,
+    data_max: vec4<f32>,
+
+    grayscale: u32,
+    partitioning_idx: u32,
+    xpos: u32,
+    ypos: u32,
 };
 
 struct BlockMode {

@@ -28,6 +28,13 @@ struct Pixel {
 struct InputBlock {
     pixels: array<Pixel, BLOCK_MAX_TEXELS>,
     partition_pixel_counts: array<u32, 4>,
+    data_min: vec4<f32>,
+    data_max: vec4<f32>,
+
+    grayscale: u32,
+    partitioning_idx: u32,
+    xpos: u32,
+    ypos: u32,
 };
 
 struct IdealEndpointsAndWeightsPartition {
@@ -126,7 +133,7 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
         let pix = inputBlock.pixels[i];
         let p = pix.partitionNum;
         if (p < 4u) {
-            let proj = dot(pix.data, direction[p]);
+            let proj = dot(pix.data - avg[p], direction[p]);
             minProj[p] = min(minProj[p], proj);
             maxProj[p] = max(maxProj[p], proj);
         }
@@ -153,8 +160,10 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
             outputBlocks[blockIndex].partitions[p].endpoint1 = avg[p];
         }
         else {
-            outputBlocks[blockIndex].partitions[p].endpoint0 = d * minProj[p];
-            outputBlocks[blockIndex].partitions[p].endpoint1 = d * maxProj[p];
+            outputBlocks[blockIndex].partitions[p].endpoint0 = avg[p] + d * minProj[p];
+            outputBlocks[blockIndex].partitions[p].endpoint1 = avg[p] + d * maxProj[p];
+            //outputBlocks[blockIndex].partitions[p].endpoint0 = d * minProj[p];
+            //outputBlocks[blockIndex].partitions[p].endpoint1 = d * maxProj[p];
         }
 
         if(p == 0) {
@@ -171,7 +180,7 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
         let p = pix.partitionNum;
 
         if (p < 4u) {
-            let proj = dot(pix.data, direction[p]);
+            let proj = dot(pix.data - avg[p], direction[p]);
             let span = max(maxProj[p] - minProj[p], 1e-6);
             let w = clamp((proj - minProj[p]) / span, 0.0, 1.0);
             outputBlocks[blockIndex].weights[i] = w;
