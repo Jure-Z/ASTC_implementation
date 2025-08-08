@@ -204,8 +204,8 @@ fn main(
             // Read from shared memory
             infill_val += shared_decimated_weights[weight_idx] * contrib;
         }
-        // The sum of contributions for a texel is always 16.0
-        shared_infilled_weights[i] = infill_val / 16.0;
+
+        shared_infilled_weights[i] = infill_val;
     }
     workgroupBarrier(); // SYNC: Ensure the entire infilled grid is complete
 

@@ -186,7 +186,7 @@ void ASTCEncoder::initMetadata() {
 		modes_per_block[block_idx] = 0;
 		block_mode_trial_offsets[block_idx] = block_mode_trial_offset;
 
-        for (uint32_t mode_idx = 0; mode_idx < block_descriptor.uniform_variables.block_mode_count; ++mode_idx) {
+        for (uint32_t mode_idx = 0; mode_idx < WEIGHTS_MAX_DECIMATION_MODES; ++mode_idx) {
 
             unsigned int mode_packed_index = block_descriptor.block_mode_index[mode_idx];
 
@@ -338,33 +338,35 @@ void ASTCEncoder::encode(uint8_t* imageData, uint8_t* dataOut, size_t dataLen) {
         pass.DispatchWorkgroups(numBlocks, 1, 1); //run shader for each block
         pass.End();
     }
-	{
-		wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
-		pass.SetPipeline(pass13_pipeline);
-		pass.SetBindGroup(0, pass13_bindGroup, 0, nullptr);
-		pass.DispatchWorkgroups(numBlocks * numCandidates, 1, 1); //run shader for each final candidate
-		pass.End();
-	}
-	{
-		wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
-		pass.SetPipeline(pass14_pipeline);
-		pass.SetBindGroup(0, pass14_bindGroup, 0, nullptr);
-		pass.DispatchWorkgroups(numBlocks * numCandidates, 1, 1); //run shader for each final candidate
-		pass.End();
-	}
-    {
-        wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
-        pass.SetPipeline(pass15_pipeline);
-        pass.SetBindGroup(0, pass15_bindGroup, 0, nullptr);
-        pass.DispatchWorkgroups(numBlocks * numCandidates, 1, 1); //run shader for each final candidate
-        pass.End();
-    }
-    {
-        wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
-        pass.SetPipeline(pass16_pipeline);
-        pass.SetBindGroup(0, pass16_bindGroup, 0, nullptr);
-        pass.DispatchWorkgroups(numBlocks * numCandidates, 1, 1); //run shader for each final candidate
-        pass.End();
+    for (int a = 0; a < 1; a++) {
+        {
+            wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
+            pass.SetPipeline(pass13_pipeline);
+            pass.SetBindGroup(0, pass13_bindGroup, 0, nullptr);
+            pass.DispatchWorkgroups(numBlocks * numCandidates, 1, 1); //run shader for each final candidate
+            pass.End();
+        }
+        {
+            wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
+            pass.SetPipeline(pass14_pipeline);
+            pass.SetBindGroup(0, pass14_bindGroup, 0, nullptr);
+            pass.DispatchWorkgroups(numBlocks * numCandidates, 1, 1); //run shader for each final candidate
+            pass.End();
+        }
+        {
+            wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
+            pass.SetPipeline(pass15_pipeline);
+            pass.SetBindGroup(0, pass15_bindGroup, 0, nullptr);
+            pass.DispatchWorkgroups(numBlocks * numCandidates, 1, 1); //run shader for each final candidate
+            pass.End();
+        }
+        {
+            wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
+            pass.SetPipeline(pass16_pipeline);
+            pass.SetBindGroup(0, pass16_bindGroup, 0, nullptr);
+            pass.DispatchWorkgroups(numBlocks * numCandidates, 1, 1); //run shader for each final candidate
+            pass.End();
+        }
     }
     {
         wgpu::ComputePassEncoder pass = encoder.BeginComputePass();

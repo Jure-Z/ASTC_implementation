@@ -317,7 +317,6 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
                     let tw_map = texel_to_weight_map[tw_offset + j];
                     weight_base += uq_weightsf[tw_map.weight_index] * tw_map.contribution;
                 }
-                weight_base = weight_base / 16.0;
 
                 let weight_down_diff = uqw_diff_down * wt_map.contribution;
                 let weight_up_diff = uqw_diff_up * wt_map.contribution;

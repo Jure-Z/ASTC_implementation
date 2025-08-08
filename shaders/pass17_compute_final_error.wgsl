@@ -179,7 +179,7 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
                 let mapping = texel_to_weight_map[weight_offset + j];
                 infill_val += dec_weights[mapping.weight_index] * mapping.contribution;
             }
-            undec_weights[i] = infill_val / 16.0;
+            undec_weights[i] = infill_val;
         }
     }
     workgroupBarrier();

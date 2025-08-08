@@ -283,7 +283,7 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
             let mapping = texel_to_weight_map[weight_offset + j];
             infill_val += shared_quantized_weights_float[mapping.weight_index] * mapping.contribution;
         }
-        shared_infilled_weights[i] = infill_val / 16.0;
+        shared_infilled_weights[i] = infill_val;
     }
     workgroupBarrier();
     
