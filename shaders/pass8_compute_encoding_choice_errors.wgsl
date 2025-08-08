@@ -309,7 +309,10 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
         let ep_can_offset = ep_diff < vec4<f32>(0.12f * 65536.0);
         let can_offset_encode = select(0u, 1u, ep_can_offset.x && ep_can_offset.y && ep_can_offset.z);
 
-        let can_blue_contract = 0u; //TODO (1 if block is grayscale with constant alpha, 0 otherwise))
+        var can_blue_contract = 1u; //0 if block is grayscale with constant alpha, 1 otherwise
+        if(input_block.grayscale == 1u && input_block.data_min.a == DEFAULT_ALPHA && input_block.data_max.a == DEFAULT_ALPHA) {
+            can_blue_contract = 0u;
+        }
 
         //Store errors
         //errors are weighted, the weights are determined empirically

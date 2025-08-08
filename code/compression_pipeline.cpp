@@ -14,8 +14,8 @@ std::vector<InputBlock> SplitImageIntoBlocks(
 
     std::vector<InputBlock> blocks;
 
-    int blocksX = width / blockWidth;
-    int blocksY = height / blockHeight;
+    int blocksX = (width + blockWidth - 1) / blockWidth;
+    int blocksY = (height + blockHeight - 1) / blockHeight;
 
     for (int by = 0; by < blocksY; ++by) {
         for (int bx = 0; bx < blocksX; ++bx) {
@@ -33,10 +33,16 @@ std::vector<InputBlock> SplitImageIntoBlocks(
 
             int pixelIndex = 0;
             for (int dy = 0; dy < blockHeight; ++dy) {
+
+                int y = by * blockHeight + dy;
+                int clamped_y = std::min(y, height - 1);
+
                 for (int dx = 0; dx < blockWidth; ++dx) {
+
                     int x = bx * blockWidth + dx;
-                    int y = by * blockHeight + dy;
-                    int idx = (y * width + x) * 4;
+                    int clamped_x = std::min(x, width - 1);
+
+                    int idx = (clamped_y * width + clamped_x) * 4;
 
 
                     for (int c = 0; c < 4; c++) {
@@ -61,7 +67,12 @@ std::vector<InputBlock> SplitImageIntoBlocks(
                 }
             }
 
-            block.grayscale = grayscale;
+            if (grayscale) {
+                block.grayscale = 1;
+            }
+            else {
+                block.grayscale = 0;
+            }
 
 			block.partition_pixel_counts[0] = blockWidth * blockHeight;
             block.partition_pixel_counts[1] = 0;
@@ -136,8 +147,8 @@ ASTCEncoder::ASTCEncoder(wgpu::Device device, uint32_t textureWidth, uint32_t te
 
     this->textureWidth = textureWidth;
     this->textureHeight = textureHeight;
-    this->blocksX = textureWidth / blockXDim;
-    this->blocksY = textureHeight / blockYDim;
+    this->blocksX = (textureWidth + blockXDim - 1) / blockXDim;
+    this->blocksY = (textureHeight + blockYDim - 1) / blockYDim;
     this->numBlocks = blocksX * blocksY;
     this->blockXDim = blockXDim;
     this->blockYDim = blockYDim;
@@ -338,7 +349,7 @@ void ASTCEncoder::encode(uint8_t* imageData, uint8_t* dataOut, size_t dataLen) {
         pass.DispatchWorkgroups(numBlocks, 1, 1); //run shader for each block
         pass.End();
     }
-    for (int a = 0; a < 1; a++) {
+    for (int a = 0; a < 10; a++) {
         {
             wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
             pass.SetPipeline(pass13_pipeline);

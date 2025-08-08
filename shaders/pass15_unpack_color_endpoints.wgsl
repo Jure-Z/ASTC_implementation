@@ -197,7 +197,8 @@ fn rgb_scale_unpack (
 
     (*output1) = input0;
 
-    input0 = (input0 * scale) >> vec4<u32>(8, 8, 8, 0);
+    input0 = (input0 * scale) >> vec4<u32>(8);
+    input0.a = 255;
     
     (*output0) = input0;
 }
@@ -209,12 +210,14 @@ fn rgb_scale_alpha_unpack (
 ) {
     var input0 = vec4<i32>(i32(input[0]), i32(input[1]), i32(input[2]), i32(input[4]));
     let scale = i32(input[3]);
+    let alpha0 = i32(input[4]);
     let alpha1 = i32(input[5]);
 
     (*output1) = vec4<i32>(input0.r, input0.g, input0.b, alpha1);
 
-    input0 = (input0 * scale) >> vec4<u32>(8, 8, 8, 0);
-	
+    input0 = (input0 * scale) >> vec4<u32>(8);
+	input0.a = alpha0;
+
 	(*output0) = input0;
 }
 

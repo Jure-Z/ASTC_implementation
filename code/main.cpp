@@ -110,8 +110,8 @@ int main(int, char**) {
     ImageData image = LoadImageRGBA(TEST_IMAGE_DIR "/image1.jpg");
 #endif
 
-	unsigned int blockXDim = 10;
-	unsigned int blockYDim = 10;
+	unsigned int blockXDim = 12;
+	unsigned int blockYDim = 12;
     
 	ASTCEncoder* encoder = new ASTCEncoder(device, image.width, image.height, blockXDim, blockYDim);
 
