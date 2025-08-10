@@ -15,19 +15,25 @@ struct UniformVariables {
     decimation_mode_count : u32,
     block_mode_count : u32,
 
+    valid_decimation_mode_count: u32,
+	valid_block_mode_count: u32,
+
     quant_limit : u32,
     partition_count : u32,
     tune_candidate_limit : u32,
 
+    _padding1: u32,
+    _padding2: u32,
+
     channel_weights : vec4<f32>,
 };
 
-struct BlockModeTrial {
-    block_index : u32,
-    block_mode_index : u32,
-    decimation_mode_trial_index : u32,
+struct PackedBlockModeLookup {
+    block_mode_index: u32,
+    decimation_mode_lookup_idx: u32, //index of corresponding decimation mode in the valid decimation modes buffer
 
-    _padding1 : u32,
+    _padding1: u32,
+    _padding2: u32,
 };
 
 struct BlockMode {
@@ -52,7 +58,7 @@ struct FinalValueRange {
 
 
 @group(0) @binding(0) var<uniform> uniforms: UniformVariables;
-@group(0) @binding(1) var<storage, read> block_mode_trials: array<BlockModeTrial>;
+@group(0) @binding(1) var<storage, read> valid_block_modes: array<PackedBlockModeLookup>;
 @group(0) @binding(2) var<storage, read> block_modes: array<BlockMode>;
 @group(0) @binding(3) var<storage, read> source_low_values: array<f32>;
 @group(0) @binding(4) var<storage, read> source_high_values: array<f32>;
@@ -64,9 +70,14 @@ struct FinalValueRange {
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     let block_mode_trial_index = global_id.x;
+    let num_valid_bms = uniforms.valid_block_mode_count;
+    let num_valid_dms = uniforms.valid_decimation_mode_count;
 
-    let block_mode_index = block_mode_trials[block_mode_trial_index].block_mode_index;
-    let decimation_mode_trial_index = block_mode_trials[block_mode_trial_index].decimation_mode_trial_index;
+    let block_index = block_mode_trial_index / num_valid_bms;
+    let bm_lookup_idx = block_mode_trial_index % num_valid_bms;
+    let block_mode_index = valid_block_modes[bm_lookup_idx].block_mode_index;
+
+    let decimation_mode_trial_index = block_index * num_valid_dms + valid_block_modes[bm_lookup_idx].decimation_mode_lookup_idx;
 
     let bm = block_modes[block_mode_index];
 

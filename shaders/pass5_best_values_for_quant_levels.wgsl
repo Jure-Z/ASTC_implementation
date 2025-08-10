@@ -18,19 +18,17 @@ struct UniformVariables {
     decimation_mode_count : u32,
     block_mode_count : u32,
 
+    valid_decimation_mode_count: u32,
+	valid_block_mode_count: u32,
+
     quant_limit : u32,
     partition_count : u32,
     tune_candidate_limit : u32,
 
+    _padding1: u32,
+    _padding2: u32,
+
     channel_weights : vec4<f32>,
-};
-
-struct DecimationModeTrial {
-    block_idx : u32,
-    mode_idx : u32,
-
-    _padding1 : u32,
-    _padding2 : u32,
 };
 
 struct DecimationInfo {
@@ -65,7 +63,7 @@ struct HighestAndLowestWeight {
 
 
 @group(0) @binding(0) var<uniform> uniforms: UniformVariables;
-@group(0) @binding(1) var<storage, read> decimation_mode_trials: array<DecimationModeTrial>;
+@group(0) @binding(1) var<storage, read> valid_decimation_modes: array<u32>;
 @group(0) @binding(2) var<storage, read> decimation_infos: array<DecimationInfo>;
 @group(0) @binding(3) var<storage, read> angular_offsets: array<f32>; //pass3 output
 @group(0) @binding(4) var<storage, read> lowest_and_highest_weights: array<HighestAndLowestWeight>; //Output of pass4
@@ -84,9 +82,12 @@ var<workgroup> shared_best_results: array<vec3<f32>, MAX_BEST_RESULTS>;
 fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_index) local_idx: u32) {
 
     let decimation_mode_trial_idx = group_id.x;
+    let num_valid_modes = uniforms.valid_decimation_mode_count;
 
-    let block_idx = decimation_mode_trials[decimation_mode_trial_idx].block_idx;
-    let mode_idx = decimation_mode_trials[decimation_mode_trial_idx].mode_idx;
+    let block_idx = decimation_mode_trial_idx / num_valid_modes;
+    let mode_lookup_idx = decimation_mode_trial_idx % num_valid_modes;
+    let mode_idx = valid_decimation_modes[mode_lookup_idx];
+
 
     if(mode_idx >= uniforms.decimation_mode_count) {
         return;

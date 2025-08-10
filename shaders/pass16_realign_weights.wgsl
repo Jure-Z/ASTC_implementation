@@ -82,9 +82,15 @@ struct UniformVariables {
     decimation_mode_count : u32,
     block_mode_count : u32,
 
+    valid_decimation_mode_count: u32,
+	valid_block_mode_count: u32,
+
     quant_limit : u32,
     partition_count : u32,
     tune_candidate_limit : u32,
+
+    _padding1: u32,
+    _padding2: u32,
 
     channel_weights : vec4<f32>,
 };

@@ -91,19 +91,25 @@ struct UniformVariables {
     decimation_mode_count : u32,
     block_mode_count : u32,
 
+    valid_decimation_mode_count: u32,
+	valid_block_mode_count: u32,
+
     quant_limit : u32,
     partition_count : u32,
     tune_candidate_limit : u32,
 
+    _padding1: u32,
+    _padding2: u32,
+
     channel_weights : vec4<f32>,
 };
 
-struct BlockModeTrial {
-    block_index : u32,
-    block_mode_index : u32,
-    decimation_mode_trial_index : u32,
+struct PackedBlockModeLookup {
+    block_mode_index: u32,
+    decimation_mode_lookup_idx: u32, //index of corresponding decimation mode in the valid decimation modes buffer
 
-    _padding1 : u32,
+    _padding1: u32,
+    _padding2: u32,
 };
 
 struct QuantizationResult {
@@ -128,7 +134,7 @@ struct ColorCombinationResult {
 
 
 @group(0) @binding(0) var<uniform> uniforms: UniformVariables;
-@group(0) @binding(1) var<storage, read> block_mode_trials: array<BlockModeTrial>;
+@group(0) @binding(1) var<storage, read> valid_block_modes: array<PackedBlockModeLookup>;
 @group(0) @binding(2) var<storage, read> quantization_results: array<QuantizationResult>;
 @group(0) @binding(3) var<storage, read> color_error_table: array<f32>;
 @group(0) @binding(4) var<storage, read> format_choice_table: array<u32>;
@@ -137,17 +143,19 @@ struct ColorCombinationResult {
 
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    let trial_idx = global_id.x;
 
-    let quant_result = quantization_results[trial_idx];
+    let block_mode_trial_index = global_id.x;
+    let num_valid_bms = uniforms.valid_block_mode_count;
+
+    let quant_result = quantization_results[block_mode_trial_index];
     let weight_error = quant_result.error;
     let bits_avalible = quant_result.bitcount;
 
-    let block_idx = block_mode_trials[trial_idx].block_index;
+    let block_index = block_mode_trial_index / num_valid_bms;
 
     //skip if error is already to high
     if(weight_error >= ERROR_CALC_DEFAULT) {
-        let out_ptr = &output_color_combination_results[trial_idx];
+        let out_ptr = &output_color_combination_results[block_mode_trial_index];
         (*out_ptr).total_error = ERROR_CALC_DEFAULT;
         return;
     }
@@ -155,7 +163,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var best_integer_count_idx = 0u;
     var best_integer_count_error = ERROR_CALC_DEFAULT;
 
-    let integer_count_error_idx_base = (block_idx * uniforms.partition_count + 0u) * NUM_QUANT_LEVELS;
+    let integer_count_error_idx_base = (block_index * uniforms.partition_count + 0u) * NUM_QUANT_LEVELS;
 
     //Loop through 4 integer counts (2,4,6,8)
     for(var int_count_idx = 1u; int_count_idx <= 4u; int_count_idx = int_count_idx + 1u) {
@@ -182,7 +190,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     var best_ep_format = FMT_LUMINANCE;
     if(final_quant_level >= 4) {
-        let format_choice_idx = ((block_idx * uniforms.partition_count + 0u) * NUM_QUANT_LEVELS + u32(final_quant_level)) * NUM_INT_COUNTS + best_integer_count_idx - 1u;
+        let format_choice_idx = ((block_index * uniforms.partition_count + 0u) * NUM_QUANT_LEVELS + u32(final_quant_level)) * NUM_INT_COUNTS + best_integer_count_idx - 1u;
         best_ep_format = format_choice_table[format_choice_idx];
     }
 
@@ -190,7 +198,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     //Finalization
     let total_error = best_integer_count_error + weight_error;
 
-    let out_ptr = &output_color_combination_results[trial_idx];
+    let out_ptr = &output_color_combination_results[block_mode_trial_index];
     (*out_ptr).total_error = total_error;
     (*out_ptr).best_quant_level = u32(final_quant_level);
     (*out_ptr).best_quant_level_mod = u32(final_quant_level); // For 1-partition, these are the same

@@ -46,19 +46,25 @@ struct UniformVariables {
     decimation_mode_count : u32,
     block_mode_count : u32,
 
+    valid_decimation_mode_count: u32,
+	valid_block_mode_count: u32,
+
     quant_limit : u32,
     partition_count : u32,
     tune_candidate_limit : u32,
 
+    _padding1: u32,
+    _padding2: u32,
+
     channel_weights : vec4<f32>,
 };
 
-struct BlockModeTrial {
-    block_index : u32,
-    block_mode_index : u32,
-    decimation_mode_trial_index : u32,
+struct PackedBlockModeLookup {
+    block_mode_index: u32,
+    decimation_mode_lookup_idx: u32, //index of corresponding decimation mode in the valid decimation modes buffer
 
-    _padding1 : u32,
+    _padding1: u32,
+    _padding2: u32,
 };
 
 struct BlockMode {
@@ -137,7 +143,7 @@ struct QuantizationResult {
 };
 
 @group(0) @binding(0) var<uniform> uniforms: UniformVariables;
-@group(0) @binding(1) var<storage, read> block_mode_trials: array<BlockModeTrial>;
+@group(0) @binding(1) var<storage, read> valid_block_modes: array<PackedBlockModeLookup>;
 @group(0) @binding(2) var<storage, read> block_modes: array<BlockMode>;
 @group(0) @binding(3) var<storage, read> decimation_infos: array<DecimationInfo>;
 @group(0) @binding(4) var<storage, read> ideal_decimated_weights: array<f32>;
@@ -175,10 +181,17 @@ var<workgroup> shared_total_error: atomic<u32>;
 fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_index) local_idx: u32) {
 
     let block_mode_trial_index = group_id.x;
+    let num_valid_bms = uniforms.valid_block_mode_count;
+    let num_valid_dms = uniforms.valid_decimation_mode_count;
 
-    let block_mode_index = block_mode_trials[block_mode_trial_index].block_mode_index;
+    let block_index = block_mode_trial_index / num_valid_bms;
+    let bm_lookup_idx = block_mode_trial_index % num_valid_bms;
+    let block_mode_index = valid_block_modes[bm_lookup_idx].block_mode_index;
+
     let bm = block_modes[block_mode_index];
-    let block_index = block_mode_trials[block_mode_trial_index].block_index;
+
+    let decimation_mode_lookup_idx = valid_block_modes[bm_lookup_idx].decimation_mode_lookup_idx;
+    let decimation_mode_trial_index = block_index * num_valid_dms + decimation_mode_lookup_idx;
 
     //step 1: setup and filtering
     if (local_idx == 0u) {
@@ -234,7 +247,7 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
     let scaled_low_bound = value_range.low * scale;
     rscale = rscale / 64.0f;
 
-    let ideal_weight_base_idx = block_mode_trials[block_mode_trial_index].decimation_mode_trial_index * BLOCK_MAX_WEIGHTS;
+    let ideal_weight_base_idx = decimation_mode_trial_index * BLOCK_MAX_WEIGHTS;
 
     for (var i = local_idx; i < num_weights; i += WORKGROUP_SIZE) {
         let ideal_weight = ideal_decimated_weights[ideal_weight_base_idx + i];

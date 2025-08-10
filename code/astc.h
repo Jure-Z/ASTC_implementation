@@ -252,6 +252,14 @@ struct alignas(16) block_mode {
 	uint32_t _padding3;
 };
 
+struct alignas(16) PackedBlockModeLookup {
+	uint32_t block_mode_index;
+	uint32_t decimation_mode_lookup_idx; //index of corresponding decimation mode trial
+
+	uint32_t _padding1;
+	uint32_t _padding2;
+};
+
 /**
  * @brief holds variables that are uniform for all blocks
  */
@@ -264,9 +272,15 @@ struct alignas(16) uniform_variables {
 	uint32_t decimation_mode_count;
 	uint32_t block_mode_count;
 
+	uint32_t valid_decimation_mode_count;
+	uint32_t valid_block_mode_count;
+
 	uint32_t quant_limit;
 	uint32_t partition_count;
 	uint32_t tune_candidate_limit;
+
+	uint32_t _padding1;
+	uint32_t _padding2;
 
 	float channel_weights[4];
 };
@@ -370,32 +384,6 @@ struct block_descriptor {
 		auto& result = get_partition_table(partition_count)[packed_index];
 		return result;
 	}
-};
-
-/**
- * @brief holds indices of a pair (block, decimation_mode).
- * Not all legal decimation modes will actually be viable for every block.
- * We only preform trials for viable (block,decimation_mode) pairs, to avoid doing unneccesary work.
- */
-struct alignas(16) DecimationModeTrial {
-	uint32_t block_index;
-	uint32_t decimation_mode_index;
-
-	uint32_t padding1;
-	uint32_t padding2;
-};
-
-/**
- * @brief holds indices of a pair (block, block mode_mode), as well as the index of the deciamtion mode trial
- * corresponding to the block mode
- * We only preform trials for viable (block, block_mode) pairs, to avoid doing unneccesary work.
- */
-struct alignas(16) BlockModeTrial {
-	uint32_t block_index;
-	uint32_t block_mode_index;
-	uint32_t decimation_mode_trial_index;
-
-	uint32_t padding1;
 };
 
 
@@ -728,6 +716,7 @@ public:
 
 private:
 	void initMetadata();
+	void initTrialModes();
 	void initBindGroupLayouts();
 	void initBuffers();
 	void initPipelines();
@@ -746,10 +735,8 @@ private:
 	uint8_t blockXDim;
 	uint8_t blockYDim;
 
-	std::vector<DecimationModeTrial> decimation_mode_trials; //(block, deciamtion mode) pairs to test
-	std::vector<BlockModeTrial> block_mode_trials; //(block, block mode) pairs to test
-	std::vector<uint32_t> modes_per_block;// number of block modes for each block
-	std::vector<uint32_t> block_mode_trial_offsets; //global index of first block mode trial for each block
+	std::vector<uint32_t> valid_decimation_modes; //Decimation modes that we actually consider for encoding
+	std::vector<PackedBlockModeLookup> valid_block_modes; //Block modes that we actually consider for encoding
 
 	//Shader modules 
 	wgpu::ShaderModule pass1_idealEndpointsShader;
@@ -825,11 +812,6 @@ private:
 	//Buffers
 	wgpu::Buffer uniformsBuffer;
 
-	wgpu::Buffer decimationModeTrialsBuffer;
-	wgpu::Buffer blockModeTrialsBuffer;
-	wgpu::Buffer modesPerBlockBuffer;
-	wgpu::Buffer blockModeTrialOffsetsBuffer;
-
 	//Buffers for block mode info (constant after setup)
 	wgpu::Buffer blockModesBuffer;
 	wgpu::Buffer blockModeIndexBuffer;
@@ -837,6 +819,9 @@ private:
 	wgpu::Buffer decimationInfoBuffer;
 	wgpu::Buffer texelToWeightMapBuffer;
 	wgpu::Buffer weightToTexelMapBuffer;
+
+	wgpu::Buffer validDecimationModesBuffer;
+	wgpu::Buffer validBlockModesBuffer;
 
 	//Buffers for storing sin and cos function values
 	wgpu::Buffer sinBuffer;
@@ -862,16 +847,6 @@ private:
 	wgpu::Buffer pass15_output_unpackedEndpoints;
 	wgpu::Buffer pass17_output_finalErrors;
 	wgpu::Buffer pass18_output_symbolicBlocks;
-
-	//Readback buffers
-	wgpu::Buffer readbackBuffer;
-	wgpu::Buffer readbackBuffer2;
-	wgpu::Buffer readbackBuffer6_1;
-	wgpu::Buffer readbackBuffer6_2;
-	wgpu::Buffer readbackBuffer7;
-	wgpu::Buffer readbackBuffer10;
-	wgpu::Buffer readbackBuffer11;
-	wgpu::Buffer readbackBuffer12;
 
 	wgpu::Buffer outputReadbackBuffer;
 
