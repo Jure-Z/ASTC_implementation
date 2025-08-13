@@ -679,7 +679,7 @@ void ASTCEncoder::initPipelines() {
 
 void ASTCEncoder::initBuffers() {
 
-    int max_partitioned_blocks = numBlocks * TUNE_MAX_PARTITIONING_CANDIDATES;
+    int max_partitioned_blocks = batchSize * TUNE_MAX_PARTITIONING_CANDIDATES;
     int max_decimation_mode_trials = max_partitioned_blocks * valid_decimation_modes.size();
     int max_block_mode_trials = max_partitioned_blocks * valid_block_modes.size();
 

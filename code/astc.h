@@ -21,7 +21,7 @@ const unsigned int BLOCK_MAX_PARTITIONS = 4;
 
 const unsigned int BLOCK_MAX_PARTITIONINGS = 1024;
 
-const unsigned int TUNE_MAX_PARTITIONING_CANDIDATES = 4;
+const unsigned int TUNE_MAX_PARTITIONING_CANDIDATES = 2;
 
 const unsigned int BLOCK_MAX_WEIGHTS = 64;
 
@@ -65,7 +65,7 @@ const unsigned int QUANT_LEVELS = 21; //QUANT_2 to QUANT_256
 const unsigned int NUM_INT_COUNTS = 4; //(2, 4, 6 and 8)
 const unsigned int MAX_INT_COUNT_COMBINATIONS = 13; //4 partitions, int count can only differ by 1 step
 
-const unsigned int TUNE_MAX_TRIAL_CANDIDATES = 8; //The maximum number of candidate encodings tested for each encoding mode
+const unsigned int TUNE_MAX_TRIAL_CANDIDATES = 4; //The maximum number of candidate encodings tested for each encoding mode
 
 //The maximum number of texels used during partition selection for texel clustering
 const unsigned int BLOCK_MAX_KMEANS_TEXELS = 64;
@@ -718,6 +718,8 @@ public:
 	uint32_t numBlocks;
 	uint32_t blocksX;
 	uint32_t blocksY;
+
+	const uint32_t batchSize = 512;
 
 private:
 	void initMetadata();

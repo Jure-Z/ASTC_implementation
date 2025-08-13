@@ -66,9 +66,16 @@ int main(int, char**) {
 	}
 
 	WGPURequestAdapterOptions adapterOpts = {};
+	adapterOpts.powerPreference = WGPUPowerPreference_HighPerformance;
 	adapterOpts.nextInChain = nullptr;
 	WGPUAdapter adapter = requestAdapterSync(instance, &adapterOpts);
 	std::cout << "Got adapter: " << adapter << std::endl;
+
+	WGPUAdapterInfo properties = {};
+	properties.nextInChain = nullptr;
+	wgpuAdapterGetInfo(adapter, &properties);
+
+	std::cout << "Got adapter: " << properties.device << std::endl;
 
 	//clean up instance
 	wgpuInstanceRelease(instance);	
@@ -100,7 +107,7 @@ int main(int, char**) {
 #if defined(__EMSCRIPTEN__)
     ImageData image = LoadImageRGBA("image1.jpg");
 #else
-    ImageData image = LoadImageRGBA(TEST_IMAGE_DIR "/image1.jpg");
+    ImageData image = LoadImageRGBA(TEST_IMAGE_DIR "/image.jpeg");
 #endif
 
 	unsigned int blockXDim = 10;

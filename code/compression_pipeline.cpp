@@ -219,6 +219,8 @@ void ASTCEncoder::initTrialModes() {
 
 void ASTCEncoder::encode(uint8_t* imageData, uint8_t* dataOut, size_t dataLen) {
 
+    std::cout << "Total blocks to compress: " << numBlocks << std::endl;
+
     //initialize compression metadata
     std::cout << "Precomputing compression data..." << std::endl;
     initMetadata();
@@ -262,146 +264,148 @@ void ASTCEncoder::encode(uint8_t* imageData, uint8_t* dataOut, size_t dataLen) {
         block.errorval = ERROR_CALC_DEFAULT;
     }
 
-    // Iterate through all supported partition counts
-    for (unsigned int p_count = 1; p_count <= 4; ++p_count) {
-        std::cout << "Compressing with " << p_count << " partition(s)..." << std::endl;
+    for (uint32_t batch_start = 0; batch_start < numBlocks; batch_start += batchSize) {
+        uint32_t batch_end = std::min(batch_start + batchSize, numBlocks);
+        uint32_t current_batch_size = batch_end - batch_start;
 
-        // Prepare block data for the current partition count
-        std::vector<InputBlock> current_blocks;
-        std::vector<int> block_offsets;
-        int current_partitioned_blocks_num;
-        block_descriptor.uniform_variables.partition_count = p_count;
+        std::cout << "Processing batch starting at block " << batch_start << " (" << current_batch_size << " blocks)..." << std::endl;
 
-        if (p_count == 1) {
-            current_blocks = original_blocks;
-            current_partitioned_blocks_num = original_blocks.size();
-            block_offsets.resize(numBlocks);
-            for (uint32_t i = 0; i < numBlocks; ++i) block_offsets[i] = i;
-        }
-        else {
-            unsigned int search_limit = 200;
-            unsigned int candidates = TUNE_MAX_PARTITIONING_CANDIDATES;
-            current_partitioned_blocks_num = generateBlockPartitionings(
-                block_descriptor, original_blocks, p_count, search_limit, candidates,
-                current_blocks, block_offsets);
+        auto batch_blocks_begin = original_blocks.begin() + batch_start;
+        auto batch_blocks_end = original_blocks.begin() + batch_end;
+        std::vector<InputBlock> batch_original_blocks(batch_blocks_begin, batch_blocks_end);
 
-            for (int i = (14 * TUNE_MAX_PARTITIONING_CANDIDATES); i < (15 * TUNE_MAX_PARTITIONING_CANDIDATES); i++) {
-                for (int y = 0; y < blockYDim; y++) {
-                    for (int x = 0; x < blockXDim; x++) {
-                        std::cout << current_blocks[i].pixels[y * blockXDim + x].partition << " ";
-                    }
-                    std::cout << std::endl;
+        // Iterate through all supported partition counts
+        for (unsigned int p_count = 1; p_count <= 4; ++p_count) {
+            std::cout << "Compressing with " << p_count << " partition(s)..." << std::endl;
+
+            // Prepare block data for the current partition count
+            std::vector<InputBlock> current_blocks;
+            std::vector<int> block_offsets;
+            int current_partitioned_blocks_num;
+            block_descriptor.uniform_variables.partition_count = p_count;
+
+            if (p_count == 1) {
+                current_blocks = batch_original_blocks;
+                current_partitioned_blocks_num = batch_original_blocks.size();
+                block_offsets.resize(current_batch_size);
+                for (uint32_t i = 0; i < current_batch_size; ++i) block_offsets[i] = i;
+            }
+            else {
+                unsigned int search_limit = 200;
+                unsigned int candidates = TUNE_MAX_PARTITIONING_CANDIDATES;
+                current_partitioned_blocks_num = generateBlockPartitionings(
+                    block_descriptor, batch_original_blocks, p_count, search_limit, candidates,
+                    current_blocks, block_offsets);
+            }
+
+            if (current_partitioned_blocks_num == 0) {
+                std::cout << "No valid partitionings found for " << p_count << " partitions. Skipping." << std::endl;
+                continue;
+            }
+
+            block_descriptor.uniform_variables.tune_candidate_limit = TUNE_MAX_TRIAL_CANDIDATES;
+            block_descriptor.uniform_variables.quant_limit = QUANT_32;
+
+            // Write data that is specific to this run
+            queue.WriteBuffer(uniformsBuffer, 0, &block_descriptor.uniform_variables, sizeof(uniform_variables));
+            queue.WriteBuffer(inputBlocksBuffer, 0, current_blocks.data(), current_partitioned_blocks_num * sizeof(InputBlock));
+
+            int decimation_modes_num = valid_decimation_modes.size();
+            int block_modes_num = valid_block_modes.size();
+            int numCandidates = block_descriptor.uniform_variables.tune_candidate_limit;
+
+            // Run the full compute pipeline
+            wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
+
+            // Passes 1-9
+            { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass1_pipeline); pass.SetBindGroup(0, pass1_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, 1, 1); pass.End(); }
+            { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass2_pipeline); pass.SetBindGroup(0, pass2_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, decimation_modes_num, 1); pass.End(); }
+            { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass3_pipeline); pass.SetBindGroup(0, pass3_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, decimation_modes_num, 1); pass.End(); }
+            { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass4_pipeline); pass.SetBindGroup(0, pass4_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, decimation_modes_num, 1); pass.End(); }
+            { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass5_pipeline); pass.SetBindGroup(0, pass5_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, decimation_modes_num, 1); pass.End(); }
+            { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass6_pipeline); pass.SetBindGroup(0, pass6_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, block_modes_num, 1); pass.End(); }
+            { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass7_pipeline); pass.SetBindGroup(0, pass7_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, block_modes_num, 1); pass.End(); }
+            { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass8_pipeline); pass.SetBindGroup(0, pass8_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, 1, 1); pass.End(); }
+            { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass9_pipeline); pass.SetBindGroup(0, pass9_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, 1, 1); pass.End(); }
+
+            // Pass 10 (Color Endpoint Combinations) is different for partition counts
+            if (p_count > 1) {
+                wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
+                switch (p_count) {
+                case 2: pass.SetPipeline(pass10_pipeline_2part); break;
+                case 3: pass.SetPipeline(pass10_pipeline_3part); break;
+                case 4: pass.SetPipeline(pass10_pipeline_4part); break;
                 }
-                std::cout << std::endl;
+                pass.SetBindGroup(0, pass10_bindGroup, 0, nullptr);
+                pass.DispatchWorkgroups(current_partitioned_blocks_num, 1, 1);
+                pass.End();
             }
-        }
 
-        if (current_partitioned_blocks_num == 0) {
-            std::cout << "No valid partitionings found for " << p_count << " partitions. Skipping." << std::endl;
-            continue;
-        }
-
-        block_descriptor.uniform_variables.tune_candidate_limit = TUNE_MAX_TRIAL_CANDIDATES;
-        block_descriptor.uniform_variables.quant_limit = QUANT_32;
-
-        // Write data that is specific to this run
-        queue.WriteBuffer(uniformsBuffer, 0, &block_descriptor.uniform_variables, sizeof(uniform_variables));
-        queue.WriteBuffer(inputBlocksBuffer, 0, current_blocks.data(), current_partitioned_blocks_num * sizeof(InputBlock));
-
-        int decimation_modes_num = valid_decimation_modes.size();
-        int block_modes_num = valid_block_modes.size();
-        int numCandidates = block_descriptor.uniform_variables.tune_candidate_limit;
-
-        // Run the full compute pipeline
-        wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
-
-        // Passes 1-9
-        { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass1_pipeline); pass.SetBindGroup(0, pass1_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, 1, 1); pass.End(); }
-        { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass2_pipeline); pass.SetBindGroup(0, pass2_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, decimation_modes_num, 1); pass.End(); }
-        { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass3_pipeline); pass.SetBindGroup(0, pass3_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, decimation_modes_num, 1); pass.End(); }
-        { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass4_pipeline); pass.SetBindGroup(0, pass4_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, decimation_modes_num, 1); pass.End(); }
-        { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass5_pipeline); pass.SetBindGroup(0, pass5_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, decimation_modes_num, 1); pass.End(); }
-        { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass6_pipeline); pass.SetBindGroup(0, pass6_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, block_modes_num, 1); pass.End(); }
-        { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass7_pipeline); pass.SetBindGroup(0, pass7_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, block_modes_num, 1); pass.End(); }
-        { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass8_pipeline); pass.SetBindGroup(0, pass8_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, 1, 1); pass.End(); }
-        { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass9_pipeline); pass.SetBindGroup(0, pass9_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, 1, 1); pass.End(); }
-
-        // Pass 10 (Color Endpoint Combinations) is different for partition counts
-        if (p_count > 1) {
-            wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
-            switch (p_count) {
-            case 2: pass.SetPipeline(pass10_pipeline_2part); break;
-            case 3: pass.SetPipeline(pass10_pipeline_3part); break;
-            case 4: pass.SetPipeline(pass10_pipeline_4part); break;
+            // Pass 11 (Best Combination for Mode) Is different for partition counts
+            {
+                wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
+                switch (p_count) {
+                case 1: pass.SetPipeline(pass11_pipeline_1part); pass.SetBindGroup(0, pass11_bindGroup_1part, 0, nullptr); break;
+                case 2: pass.SetPipeline(pass11_pipeline_2part); pass.SetBindGroup(0, pass11_bindGroup_234part, 0, nullptr); break;
+                case 3: pass.SetPipeline(pass11_pipeline_3part); pass.SetBindGroup(0, pass11_bindGroup_234part, 0, nullptr); break;
+                case 4: pass.SetPipeline(pass11_pipeline_4part); pass.SetBindGroup(0, pass11_bindGroup_234part, 0, nullptr); break;
+                }
+                pass.DispatchWorkgroups(current_partitioned_blocks_num, block_modes_num, 1);
+                pass.End();
             }
-            pass.SetBindGroup(0, pass10_bindGroup, 0, nullptr);
-            pass.DispatchWorkgroups(current_partitioned_blocks_num, 1, 1);
-            pass.End();
-        }
 
-        // Pass 11 (Best Combination for Mode) Is different for partition counts
-        {
-            wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
-            switch (p_count) {
-            case 1: pass.SetPipeline(pass11_pipeline_1part); pass.SetBindGroup(0, pass11_bindGroup_1part, 0, nullptr); break;
-            case 2: pass.SetPipeline(pass11_pipeline_2part); pass.SetBindGroup(0, pass11_bindGroup_234part, 0, nullptr); break;
-            case 3: pass.SetPipeline(pass11_pipeline_3part); pass.SetBindGroup(0, pass11_bindGroup_234part, 0, nullptr); break;
-            case 4: pass.SetPipeline(pass11_pipeline_4part); pass.SetBindGroup(0, pass11_bindGroup_234part, 0, nullptr); break;
-            }
-            pass.DispatchWorkgroups(current_partitioned_blocks_num, block_modes_num, 1);
-            pass.End();
-        }
+            // Pass 12 (Find Top N Candidates)
+            { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass12_pipeline); pass.SetBindGroup(0, pass12_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, 1, 1); pass.End(); }
 
-        // Pass 12 (Find Top N Candidates)
-        { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass12_pipeline); pass.SetBindGroup(0, pass12_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, 1, 1); pass.End(); }
+            // Passes 13-17 (Refinement Loop)
+            for (int a = 0; a < 8; a++) {
+                { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass13_pipeline); pass.SetBindGroup(0, pass13_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, numCandidates, 1); pass.End(); }
+                { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass14_pipeline); pass.SetBindGroup(0, pass14_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, numCandidates, 1); pass.End(); }
+                { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass15_pipeline); pass.SetBindGroup(0, pass15_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, numCandidates, 1); pass.End(); }
 
-        // Passes 13-17 (Refinement Loop)
-        for (int a = 0; a < 8; a++) {
-            { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass13_pipeline); pass.SetBindGroup(0, pass13_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, numCandidates, 1); pass.End(); }
-            { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass14_pipeline); pass.SetBindGroup(0, pass14_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, numCandidates, 1); pass.End(); }
-            { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass15_pipeline); pass.SetBindGroup(0, pass15_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, numCandidates, 1); pass.End(); }
+                if (a == 0) {
+                    { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass17_pipeline); pass.SetBindGroup(0, pass17_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, numCandidates, 1); pass.End(); }
+                }
 
-            if (a == 0) {
+                { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass16_pipeline); pass.SetBindGroup(0, pass16_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, numCandidates, 1); pass.End(); }
                 { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass17_pipeline); pass.SetBindGroup(0, pass17_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, numCandidates, 1); pass.End(); }
             }
 
-            { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass16_pipeline); pass.SetBindGroup(0, pass16_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, numCandidates, 1); pass.End(); }
-            { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass17_pipeline); pass.SetBindGroup(0, pass17_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, numCandidates, 1); pass.End(); }
-        }
-
-        // Pass 18
-        { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass18_pipeline); pass.SetBindGroup(0, pass18_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, 1, 1); pass.End(); }
+            // Pass 18
+            { wgpu::ComputePassEncoder pass = encoder.BeginComputePass(); pass.SetPipeline(pass18_pipeline); pass.SetBindGroup(0, pass18_bindGroup, 0, nullptr); pass.DispatchWorkgroups(current_partitioned_blocks_num, 1, 1); pass.End(); }
 
 
-        // Read data from the final output buffer
-        encoder.CopyBufferToBuffer(pass18_output_symbolicBlocks, 0, outputReadbackBuffer, 0, current_partitioned_blocks_num * sizeof(SymbolicBlock));
-        wgpu::CommandBuffer commands = encoder.Finish();
-        queue.Submit(1, &commands);
+            // Read data from the final output buffer
+            encoder.CopyBufferToBuffer(pass18_output_symbolicBlocks, 0, outputReadbackBuffer, 0, current_partitioned_blocks_num * sizeof(SymbolicBlock));
+            wgpu::CommandBuffer commands = encoder.Finish();
+            queue.Submit(1, &commands);
 
-        std::vector<SymbolicBlock> current_results(current_partitioned_blocks_num);
-        mapOutputBufferSync<SymbolicBlock>(device, outputReadbackBuffer, current_partitioned_blocks_num, current_results);
+            std::vector<SymbolicBlock> current_results(current_partitioned_blocks_num);
+            mapOutputBufferSync<SymbolicBlock>(device, outputReadbackBuffer, current_partitioned_blocks_num, current_results);
 
+            //Choose the best partitioning candidate for each block & compare to the current best
+            for (uint32_t i = 0; i < current_batch_size; ++i) {
+                int start_offset = block_offsets[i];
+                int end_offset = (i + 1 < block_offsets.size()) ? block_offsets[i + 1] : current_partitioned_blocks_num;
 
-        //Choose the best partitioning candidate for each block & compare to the current best
-        for (uint32_t i = 0; i < numBlocks; ++i) {
-            int start_offset = block_offsets[i];
-            int end_offset = (i + 1 < block_offsets.size()) ? block_offsets[i + 1] : current_partitioned_blocks_num;
+                if (start_offset >= end_offset)
+                    continue; // No candidates for this block
 
-            if (start_offset >= end_offset)
-                continue; // No candidates for this block
+                const SymbolicBlock* best_candidate_for_block = &current_results[start_offset];
+                for (int j = start_offset + 1; j < end_offset; ++j) {
+                    if (current_results[j].errorval < best_candidate_for_block->errorval) {
+                        best_candidate_for_block = &current_results[j];
+                    }
+                }
 
-            const SymbolicBlock* best_candidate_for_block = &current_results[start_offset];
-            for (int j = start_offset + 1; j < end_offset; ++j) {
-                if (current_results[j].errorval < best_candidate_for_block->errorval) {
-                    best_candidate_for_block = &current_results[j];
+                // Compare its error with the best overall encoding found so far
+                uint32_t global_block_index = batch_start + i;
+                if (best_candidate_for_block->errorval < best_symbolic_blocks[global_block_index].errorval) {
+                    best_symbolic_blocks[global_block_index] = *best_candidate_for_block;
                 }
             }
-
-            // Compare its error with the best overall encoding found so far
-            if (best_candidate_for_block->errorval < best_symbolic_blocks[i].errorval) {
-                best_symbolic_blocks[i] = *best_candidate_for_block;
-            }
         }
+
     }
 
     // Final physical encoding of the best symbolic blocks found

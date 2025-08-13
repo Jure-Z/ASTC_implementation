@@ -141,7 +141,7 @@ struct ColorCombinationResult {
 
 @group(0) @binding(5) var<storage, read_write> output_color_combination_results: array<ColorCombinationResult>;
 
-@compute @workgroup_size(WORKGROUP_SIZE)
+@compute @workgroup_size(1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     let block_index = global_id.x;

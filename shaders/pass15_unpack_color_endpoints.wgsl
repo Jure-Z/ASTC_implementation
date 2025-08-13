@@ -2,7 +2,7 @@ const BLOCK_MAX_PARTITIONS: u32 = 4u;
 const BLOCK_MAX_TEXELS: u32 = 144u;
 const BLOCK_MAX_WEIGHTS: u32 = 64u;
 
-const TUNE_MAX_TRIAL_CANDIDATES = 8u;
+const TUNE_MAX_TRIAL_CANDIDATES = 4u;
 
 //ASTC endpoint formats
 const FMT_LUMINANCE = 0u;

@@ -1,4 +1,4 @@
-const WORKGROUP_SIZE: u32 = 64u;
+const WORKGROUP_SIZE: u32 = 32u;
 const BLOCK_MAX_TEXELS: u32 = 144u; // Max texels (e.g., 12x12)
 const BLOCK_MAX_WEIGHTS: u32 = 64u;  // Max decimated weights (e.g., 8x8)
 

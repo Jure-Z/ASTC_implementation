@@ -1,4 +1,4 @@
-const WORKGROUP_SIZE: u32 = 64u;
+const WORKGROUP_SIZE: u32 = 32u;
 const BLOCK_MAX_WEIGHTS: u32 = 64u;
 const MAX_ANGULAR_STEPS: u32 = 16u;
 const BLOCK_MAX_TEXELS: u32 = 144u;

@@ -21,6 +21,7 @@ if(EMSCRIPTEN)
         # "-sLLD_REPORT_UNDEFINED"
 
         "--preload-file" "${CMAKE_CURRENT_SOURCE_DIR}/test_images/image1.jpg@image1.jpg"  # Preload image
+        "--preload-file" "${CMAKE_CURRENT_SOURCE_DIR}/test_images/image.jpg@image.jpg"  # Preload image
         "--preload-file" "${CMAKE_CURRENT_SOURCE_DIR}/shaders@shaders"
     )
 

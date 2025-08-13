@@ -1,9 +1,9 @@
-const WORKGROUP_SIZE: u32 = 64u;
+const WORKGROUP_SIZE: u32 = 32u;
 const BLOCK_MAX_TEXELS: u32 = 144u;
 const BLOCK_MAX_WEIGHTS: u32 = 64u;
 const BLOCK_MAX_PARTITIONS: u32 = 4u;
 
-const TUNE_MAX_TRIAL_CANDIDATES = 8u;
+const TUNE_MAX_TRIAL_CANDIDATES = 4u;
 
 //A table of previous and next weights, indexed by current value
 //bits 7:0 previous value
