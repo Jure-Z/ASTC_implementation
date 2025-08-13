@@ -152,14 +152,16 @@ struct ColorCombinationResult {
 @compute @workgroup_size(1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
-    let block_mode_trial_index = global_id.x;
+    let block_index = global_id.x;
+    let bm_lookup_idx = global_id.y;
+    let block_mode_index = valid_block_modes[bm_lookup_idx].block_mode_index;
+
     let num_valid_bms = uniforms.valid_block_mode_count;
+    let block_mode_trial_index = block_index * num_valid_bms + bm_lookup_idx;
 
     let quant_result = quantization_results[block_mode_trial_index];
     let weight_error = quant_result.error;
     let bits_avalible = quant_result.bitcount;
-
-    let block_index = block_mode_trial_index / num_valid_bms;
 
 
     //Skip if error is already to high

@@ -182,6 +182,7 @@ void ASTCEncoder::initBindGroupLayouts() {
     bg12_entries.push_back({ .binding = 3, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //output of pass 7 (quantization results)
     bg12_entries.push_back({ .binding = 4, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Output of pass11 (best endpoint combiantions for mode)
     bg12_entries.push_back({ .binding = 5, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::Storage} }); //Output of pass12 (final candidates)
+    bg12_entries.push_back({ .binding = 6, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::Storage} }); //Output of pass12 (top candidates)
 
     wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc12 = {};
     bindGroupLayoutDesc12.entryCount = (uint32_t)bg12_entries.size();
@@ -248,9 +249,9 @@ void ASTCEncoder::initBindGroupLayouts() {
     bg17_entries.push_back({ .binding = 2, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Decimation infos
     bg17_entries.push_back({ .binding = 3, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Texel to weight map
     bg17_entries.push_back({ .binding = 4, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Input blocks
-    bg17_entries.push_back({ .binding = 5, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Output of pass12 (final candidates)
-    bg17_entries.push_back({ .binding = 6, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Output of pass15 (unpacked endpoints)
-    bg17_entries.push_back({ .binding = 7, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::Storage} }); //Output of pass17 (final errors)
+    bg17_entries.push_back({ .binding = 5, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Output of pass15 (unpacked endpoints)
+    bg17_entries.push_back({ .binding = 6, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::Storage} }); //Output of pass12 (final candidates)
+    bg17_entries.push_back({ .binding = 7, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::Storage} }); //Output of pass12 (top candidates)
 
     wgpu::BindGroupLayoutDescriptor bindGroupLayoutDesc17 = {};
     bindGroupLayoutDesc17.entryCount = (uint32_t)bg17_entries.size();
@@ -260,8 +261,8 @@ void ASTCEncoder::initBindGroupLayouts() {
     //bind grup layout for pass 18
     std::vector<wgpu::BindGroupLayoutEntry> bg18_entries;
     bg18_entries.push_back({ .binding = 0, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::Uniform} }); //Uniforms Buffer
-    bg18_entries.push_back({ .binding = 1, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Output of pass12 (final candidates)
-    bg18_entries.push_back({ .binding = 2, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Output of pass17 (final errors)
+    bg18_entries.push_back({ .binding = 1, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Input blocks
+    bg18_entries.push_back({ .binding = 2, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Output of pass12 (top candidates)
     bg18_entries.push_back({ .binding = 3, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::ReadOnlyStorage} }); //Block modes
     bg18_entries.push_back({ .binding = 4, .visibility = wgpu::ShaderStage::Compute, .buffer = {.type = wgpu::BufferBindingType::Storage} }); //Output of pass18 (symbolic blocks)
 
@@ -837,12 +838,19 @@ void ASTCEncoder::initBuffers() {
     pass11Desc.size = max_block_mode_trials * sizeof(ColorCombinationResult);
     pass11_output_bestEndpointCombinationsForMode = device.CreateBuffer(&pass11Desc);
 
-    //Output buffer of pass 12 (top N candidates)
+    //Output buffer of pass 12 (final candidates)
     //indexing pattern: (block_index * block_descriptor.uniform_variables.tune_candidate_limit + i-th best candidate)
     wgpu::BufferDescriptor pass12Desc = {};
     pass12Desc.usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc;
     pass12Desc.size = max_partitioned_blocks * TUNE_MAX_TRIAL_CANDIDATES * sizeof(FinalCandidate);
     pass12_output_finalCandidates = device.CreateBuffer(&pass12Desc);
+
+    //Output buffer of pass 12 (best iteration of each final candidate)
+    //indexing pattern: (block_index * block_descriptor.uniform_variables.tune_candidate_limit + i-th best candidate)
+    wgpu::BufferDescriptor pass12Desc1 = {};
+    pass12Desc1.usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc;
+    pass12Desc1.size = max_partitioned_blocks * TUNE_MAX_TRIAL_CANDIDATES * sizeof(FinalCandidate);
+    pass12_output_topCandidates = device.CreateBuffer(&pass12Desc1);
 
     //Output buffer of pass 13 (recomputed ideal endpoints)
     wgpu::BufferDescriptor pass13Desc = {};
@@ -856,12 +864,6 @@ void ASTCEncoder::initBuffers() {
     pass15Desc.size = max_partitioned_blocks * TUNE_MAX_TRIAL_CANDIDATES * sizeof(UnpackedEndpoints);
     pass15_output_unpackedEndpoints = device.CreateBuffer(&pass15Desc);
 
-    //Output buffer of pass 17 (final errors)
-    wgpu::BufferDescriptor pass17Desc = {};
-    pass17Desc.usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc;
-    pass17Desc.size = max_partitioned_blocks * TUNE_MAX_TRIAL_CANDIDATES * sizeof(float);
-    pass17_output_finalErrors = device.CreateBuffer(&pass17Desc);
-
     //Output buffer of pass 18 (symbolic blocks)
     wgpu::BufferDescriptor pass18Desc = {};
     pass18Desc.usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc;
@@ -873,6 +875,7 @@ void ASTCEncoder::initBuffers() {
     outputDesc.usage = wgpu::BufferUsage::MapRead | wgpu::BufferUsage::CopyDst;
     outputDesc.size = max_partitioned_blocks * sizeof(SymbolicBlock);
     outputReadbackBuffer = device.CreateBuffer(&outputDesc);
+
 }
 
 void ASTCEncoder::initBindGroups() {
@@ -1069,6 +1072,7 @@ void ASTCEncoder::initBindGroups() {
     bg12_entries.push_back({ .binding = 3, .buffer = pass7_output_quantizationResults, .offset = 0, .size = pass7_output_quantizationResults.GetSize() });
     bg12_entries.push_back({ .binding = 4, .buffer = pass11_output_bestEndpointCombinationsForMode, .offset = 0, .size = pass11_output_bestEndpointCombinationsForMode.GetSize() });
     bg12_entries.push_back({ .binding = 5, .buffer = pass12_output_finalCandidates, .offset = 0, .size = pass12_output_finalCandidates.GetSize() });
+    bg12_entries.push_back({ .binding = 6, .buffer = pass12_output_topCandidates, .offset = 0, .size = pass12_output_topCandidates.GetSize() });
 
     wgpu::BindGroupDescriptor bg12_desc = {};
     bg12_desc.layout = pass12_bindGroupLayout;
@@ -1140,9 +1144,9 @@ void ASTCEncoder::initBindGroups() {
     bg17_entries.push_back({ .binding = 2, .buffer = decimationInfoBuffer, .offset = 0, .size = decimationInfoBuffer.GetSize() });
     bg17_entries.push_back({ .binding = 3, .buffer = texelToWeightMapBuffer, .offset = 0, .size = texelToWeightMapBuffer.GetSize() });
     bg17_entries.push_back({ .binding = 4, .buffer = inputBlocksBuffer, .offset = 0, .size = inputBlocksBuffer.GetSize() });
-    bg17_entries.push_back({ .binding = 5, .buffer = pass12_output_finalCandidates, .offset = 0, .size = pass12_output_finalCandidates.GetSize() });
-    bg17_entries.push_back({ .binding = 6, .buffer = pass15_output_unpackedEndpoints, .offset = 0, .size = pass15_output_unpackedEndpoints.GetSize() });
-    bg17_entries.push_back({ .binding = 7, .buffer = pass17_output_finalErrors, .offset = 0, .size = pass17_output_finalErrors.GetSize() });
+    bg17_entries.push_back({ .binding = 5, .buffer = pass15_output_unpackedEndpoints, .offset = 0, .size = pass15_output_unpackedEndpoints.GetSize() });
+    bg17_entries.push_back({ .binding = 6, .buffer = pass12_output_finalCandidates, .offset = 0, .size = pass12_output_finalCandidates.GetSize() });
+    bg17_entries.push_back({ .binding = 7, .buffer = pass12_output_topCandidates, .offset = 0, .size = pass12_output_topCandidates.GetSize() });
 
     wgpu::BindGroupDescriptor bg17_desc = {};
     bg17_desc.layout = pass17_bindGroupLayout;
@@ -1153,8 +1157,8 @@ void ASTCEncoder::initBindGroups() {
     //bind group for pass18 (pick best candidate)
     std::vector<wgpu::BindGroupEntry> bg18_entries;
     bg18_entries.push_back({ .binding = 0, .buffer = uniformsBuffer, .offset = 0, .size = uniformsBuffer.GetSize() });
-    bg18_entries.push_back({ .binding = 1, .buffer = pass12_output_finalCandidates, .offset = 0, .size = pass12_output_finalCandidates.GetSize() });
-    bg18_entries.push_back({ .binding = 2, .buffer = pass17_output_finalErrors, .offset = 0, .size = pass17_output_finalErrors.GetSize() });
+    bg18_entries.push_back({ .binding = 1, .buffer = inputBlocksBuffer, .offset = 0, .size = inputBlocksBuffer.GetSize() });
+    bg18_entries.push_back({ .binding = 2, .buffer = pass12_output_topCandidates, .offset = 0, .size = pass12_output_topCandidates.GetSize() });
     bg18_entries.push_back({ .binding = 3, .buffer = blockModesBuffer, .offset = 0, .size = blockModesBuffer.GetSize() });
     bg18_entries.push_back({ .binding = 4, .buffer = pass18_output_symbolicBlocks, .offset = 0, .size = pass18_output_symbolicBlocks.GetSize() });
 

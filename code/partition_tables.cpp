@@ -260,7 +260,7 @@ static bool generate_one_partition_info_entry(
 	{
 		for (unsigned int x = 0; x < block_descriptor.uniform_variables.xdim; x++)
 		{
-			uint8_t part = select_partition(partition_index, x, y, 1, partition_count, small_block);
+			uint8_t part = select_partition(partition_index, x, y, 0, partition_count, small_block);
 			pi.texels_of_partition[part][counts[part]++] = static_cast<uint8_t>(texel_idx++);
 			*partition_of_texel++ = part;
 		}

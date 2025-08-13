@@ -304,7 +304,8 @@ fn rgb_delta_unpack (
 @compute @workgroup_size(1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
-    let candidate_idx = global_id.x;
+    let block_idx = global_id.x;
+    let candidate_idx = block_idx * uniforms.tune_candidate_limit + global_id.y;
     let partition_count = uniforms.partition_count;
 
     let foramts = final_candidates[candidate_idx].final_formats;

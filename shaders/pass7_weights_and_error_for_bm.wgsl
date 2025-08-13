@@ -2,7 +2,7 @@ const WORKGROUP_SIZE: u32 = 64u;
 const BLOCK_MAX_TEXELS: u32 = 144u;
 const BLOCK_MAX_WEIGHTS: u32 = 64u;
 
-const FREE_BITS_FOR_PARTITION_COUNT = array<i32, 4>(111, 111 - 4 - 6, 108 - 4 - 6, 105 - 4 - 6);
+const FREE_BITS_FOR_PARTITION_COUNT = array<i32, 4>(111, 111 - 4 - 10, 108 - 4 - 10, 105 - 4 - 10);
 const QUANT_MODES = array<u32, 12>(2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32);
 
 const QUANT_TABLE_OFFSETS = array<u32, 12>(0, 2, 5, 9, 14, 20, 28, 38, 50, 66, 86, 110);
@@ -180,18 +180,17 @@ var<workgroup> shared_total_error: atomic<u32>;
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_index) local_idx: u32) {
 
-    let block_mode_trial_index = group_id.x;
+    let block_index = group_id.x;
+    let bm_lookup_idx = group_id.y;
+    let block_mode_index = valid_block_modes[bm_lookup_idx].block_mode_index;
+
     let num_valid_bms = uniforms.valid_block_mode_count;
     let num_valid_dms = uniforms.valid_decimation_mode_count;
 
-    let block_index = block_mode_trial_index / num_valid_bms;
-    let bm_lookup_idx = block_mode_trial_index % num_valid_bms;
-    let block_mode_index = valid_block_modes[bm_lookup_idx].block_mode_index;
+    let block_mode_trial_index = block_index * num_valid_bms + bm_lookup_idx;
+    let decimation_mode_trial_index = block_index * num_valid_dms + valid_block_modes[bm_lookup_idx].decimation_mode_lookup_idx;
 
     let bm = block_modes[block_mode_index];
-
-    let decimation_mode_lookup_idx = valid_block_modes[bm_lookup_idx].decimation_mode_lookup_idx;
-    let decimation_mode_trial_index = block_index * num_valid_dms + decimation_mode_lookup_idx;
 
     //step 1: setup and filtering
     if (local_idx == 0u) {

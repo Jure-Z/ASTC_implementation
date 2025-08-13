@@ -188,14 +188,15 @@ fn atomicAdd_f32(atomic_target: ptr<workgroup, atomic<u32>>, value_to_add: f32) 
 
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_index) local_idx: u32) {
-    let candidate_idx = group_id.x;
+
+    let block_idx = group_id.x;
+    let candidate_idx = block_idx * uniforms.tune_candidate_limit + group_id.y;
 
     let candidate = final_candidates[candidate_idx];
     let bm = block_modes[candidate.block_mode_index];
     let di = decimation_infos[bm.decimation_mode];
 
     let block_mode_trial_index = candidate.block_mode_trial_index;
-    let block_idx = candidate_idx / uniforms.tune_candidate_limit;
 
     let quantized_weights = candidate.quantized_weights;
 
@@ -369,10 +370,10 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
 			// set of texel weights and pixel colors
 
             let color_det1 = (left_sum_v * right_sum_v) - (middle_sum_v * middle_sum_v);
-            let color_rdet1 = 1.0 / (color_det1 + 1e-18);
+            let color_rdet1 = 1.0 / color_det1;
 
             let ls_det1 = (lmrs_sum.x * lmrs_sum.z) - (lmrs_sum.y * lmrs_sum.y);
-            let ls_rdet1 = 1.0 / (ls_det1 + 1e-18);
+            let ls_rdet1 = 1.0 / ls_det1;
 
             let color_mss1 = (left_sum_v * left_sum_v) + 2 * (middle_sum_v * middle_sum_v) + (right_sum_v * right_sum_v);
             let ls_mss1 = (lmrs_sum.x * lmrs_sum.x) + 2 * (lmrs_sum.y * lmrs_sum.y) + (lmrs_sum.z * lmrs_sum.z);

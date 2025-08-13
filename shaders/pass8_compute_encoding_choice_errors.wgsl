@@ -220,10 +220,10 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
     //Prepare processed lines for different endpoint encodings
     if(local_idx < partitionCount) {
         let p = local_idx;
-        //let avg = averages[p];
-        //let dir = directions[p];
-        let avg = vec4<f32>(ideal_endpoints_and_weights_block.partitions[p].avg.xyz, 0.0);
-        let dir = vec4<f32>(ideal_endpoints_and_weights_block.partitions[p].dir.xyz, 0.0);
+        let avg = averages[p];
+        let dir = directions[p];
+        //let avg = vec4<f32>(ideal_endpoints_and_weights_block.partitions[p].avg.xyz, 0.0);
+        //let dir = vec4<f32>(ideal_endpoints_and_weights_block.partitions[p].dir.xyz, 0.0);
 
         //Uncorrelated RGB line
         let uncor_b = normalize(dir);

@@ -24,6 +24,27 @@ struct UniformVariables {
     channel_weights : vec4<f32>,
 };
 
+struct Pixel {
+    data: vec4<f32>,
+    partitionNum: u32,
+
+    _padding1: u32,
+    _padding2: u32,
+    _padding3: u32,
+};
+
+struct InputBlock {
+    pixels: array<Pixel, BLOCK_MAX_TEXELS>,
+    partition_pixel_counts: array<u32, 4>,
+    data_min: vec4<f32>,
+    data_max: vec4<f32>,
+
+    grayscale: u32,
+    partitioning_idx: u32,
+    xpos: u32,
+    ypos: u32,
+};
+
 struct IdealEndpointsAndWeightsPartition {
     avg: vec4<f32>,
     dir: vec4<f32>,
@@ -86,8 +107,8 @@ struct SymbolicBlock {
 
 
 @group(0) @binding(0) var<uniform> uniforms: UniformVariables;
-@group(0) @binding(1) var<storage, read> final_candidates: array<FinalCandidate>;
-@group(0) @binding(2) var<storage, read> final_errors: array<f32>;
+@group(0) @binding(1) var<storage, read> inputBlocks: array<InputBlock>;
+@group(0) @binding(2) var<storage, read> top_candidates: array<FinalCandidate>;
 @group(0) @binding(3) var<storage, read> block_modes: array<BlockMode>;
 
 @group(0) @binding(4) var<storage, read_write> output_symbolic_blocks: array<SymbolicBlock>;
@@ -102,7 +123,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     for (var i = 0u; i < uniforms.tune_candidate_limit; i = i + 1u) {
         let candidate_idx = block_idx * uniforms.tune_candidate_limit + i;
-        let current_error = final_errors[candidate_idx];
+        let current_error = top_candidates[candidate_idx].total_error;
 
         if (current_error < best_error) {
             best_error = current_error;
@@ -110,13 +131,14 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         }
     }
 
-    let winner = final_candidates[best_candidate_idx];
+    let winner = top_candidates[best_candidate_idx];
+    //let winner = top_candidates[block_idx + 0];
     let out_ptr = &output_symbolic_blocks[block_idx];
 
     (*out_ptr).errorval = best_error;
     (*out_ptr).block_mode_index = block_modes[winner.block_mode_index].mode_index;
-    (*out_ptr).partition_count = 1u; // Placeholder
-    (*out_ptr).partition_index = 0u; // Placeholder
+    (*out_ptr).partition_count = uniforms.partition_count;
+    (*out_ptr).partition_index = inputBlocks[block_idx].partitioning_idx;
     (*out_ptr).quant_mode = winner.final_quant_mode;
     (*out_ptr).partition_formats_matched = winner.color_formats_matched;
 

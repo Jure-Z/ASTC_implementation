@@ -217,9 +217,10 @@ var<workgroup> part_bases: array<vec4<f32>, 4>;
 
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_index) local_idx: u32) {
-    let candidate_idx = group_id.x;
 
-    let block_idx = candidate_idx / uniforms.tune_candidate_limit;
+    let block_idx = group_id.x;
+    let candidate_idx = block_idx * uniforms.tune_candidate_limit + group_id.y;
+
     let bm = block_modes[final_candidates[candidate_idx].block_mode_index];
     let di = decimation_infos[bm.decimation_mode];
     let input_block = input_blocks[block_idx];
@@ -293,7 +294,8 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
     else {
         //realign weights decimated
 
-        for (var we_idx = local_idx; we_idx < di.weight_count; we_idx += WORKGROUP_SIZE) {
+        if(local_idx == 0) {
+        for (var we_idx = 0u; we_idx < di.weight_count; we_idx += 1u) {
 
             let candidate_weight_ptr = &final_candidates[candidate_idx].quantized_weights[we_idx];
             let uqw = i32(*candidate_weight_ptr);
@@ -324,8 +326,18 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
                     weight_base += uq_weightsf[tw_map.weight_index] * tw_map.contribution;
                 }
 
-                let weight_down_diff = uqw_diff_down * wt_map.contribution;
-                let weight_up_diff = uqw_diff_up * wt_map.contribution;
+                var tw_base = 0.0;
+                let tw_count = di.texel_weight_count[texel_idx];
+                for (var k = 0u; k < tw_count; k = k + 1u) {
+                    let tw_map = texel_to_weight_map[tw_offset + k];
+                    if (tw_map.weight_index == we_idx) {
+                        tw_base = tw_map.contribution;
+                        break;
+                    }
+                }
+
+                let weight_down_diff = uqw_diff_down * tw_base;
+                let weight_up_diff = uqw_diff_up * tw_base;
 
                 let p = input_block.pixels[texel_idx].partitionNum;
                 let color_offset = part_offsets[p];
@@ -350,9 +362,12 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
 
             if ((error_up < error_base) && (error_up < error_down) && (uqw < 64)) {
                 *candidate_weight_ptr = u32(uqw_up);
+                uq_weightsf[we_idx] = uqw_up;
             } else if ((error_down < error_base) && (uqw > 0)) {
                 *candidate_weight_ptr = u32(uqw_down);
+                uq_weightsf[we_idx] = uqw_down;
             }
+        }
         }
     }
 

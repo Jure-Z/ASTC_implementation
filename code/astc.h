@@ -21,7 +21,7 @@ const unsigned int BLOCK_MAX_PARTITIONS = 4;
 
 const unsigned int BLOCK_MAX_PARTITIONINGS = 1024;
 
-const unsigned int TUNE_MAX_PARTITIONING_CANDIDATES = 8;
+const unsigned int TUNE_MAX_PARTITIONING_CANDIDATES = 4;
 
 const unsigned int BLOCK_MAX_WEIGHTS = 64;
 
@@ -49,9 +49,14 @@ const unsigned int ANGULAR_STEPS = 16;
 const float PI = 3.14159265358979323846;
 
 //channel error weights
-const float ERROR_WEIGHT_R = 1.0f; //0.30f * 2.25f
-const float ERROR_WEIGHT_G = 1.0f; //0.59f * 2.25f
-const float ERROR_WEIGHT_B = 1.0f; //0.11f * 2.25f
+//const float ERROR_WEIGHT_R = 1.0f; //0.30f * 2.25f
+//const float ERROR_WEIGHT_G = 1.0f; //0.59f * 2.25f
+//const float ERROR_WEIGHT_B = 1.0f; //0.11f * 2.25f
+//const float ERROR_WEIGHT_A = 1.0f;
+
+const float ERROR_WEIGHT_R = 0.30f * 2.25f;
+const float ERROR_WEIGHT_G = 0.59f * 2.25f;
+const float ERROR_WEIGHT_B = 0.11f * 2.25f;
 const float ERROR_WEIGHT_A = 1.0f;
 
 const unsigned int QUANT_LEVELS = 21; //QUANT_2 to QUANT_256
@@ -843,12 +848,14 @@ private:
 	wgpu::Buffer pass10_output_colorEndpointCombinations;
 	wgpu::Buffer pass11_output_bestEndpointCombinationsForMode;
 	wgpu::Buffer pass12_output_finalCandidates;
+	wgpu::Buffer pass12_output_topCandidates;
 	wgpu::Buffer pass13_output_rgbsVectors;
 	wgpu::Buffer pass15_output_unpackedEndpoints;
-	wgpu::Buffer pass17_output_finalErrors;
 	wgpu::Buffer pass18_output_symbolicBlocks;
 
 	wgpu::Buffer outputReadbackBuffer;
+
+	wgpu::Buffer pass1111ReadbackBuffer;
 
 	//Bind Groups
 	wgpu::BindGroup pass1_bindGroup;

@@ -109,6 +109,7 @@ struct FinalCandidate {
 @group(0) @binding(4) var<storage, read> color_combination_results: array<ColorCombinationResult>;
 
 @group(0) @binding(5) var<storage, read_write> output_final_candidates: array<FinalCandidate>;
+@group(0) @binding(6) var<storage, read_write> output_top_candidates: array<FinalCandidate>;
 
 
 var<workgroup> topCandidates: array<SortItem, TUNE_MAX_TRIAL_CANDIDATES>;
@@ -168,6 +169,13 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
 
             (*out_ptr).quantized_weights = quantization_results[bm_trial_idx].quantized_weights;
             (*out_ptr).candidate_partitions = ideal_endpoints_and_weights[block_idx].partitions;
+
+
         }
+
+        //initialize top candidate errors to max error
+        let output_idx = block_idx * uniforms.tune_candidate_limit + winner_idx;
+        output_top_candidates[output_idx].total_error = ERROR_CALC_DEFAULT;
 	}
+
 }

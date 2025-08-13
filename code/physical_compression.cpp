@@ -1,5 +1,5 @@
 #include "astc.h"
-
+#include <iostream>
 
 struct btq_count
 {
@@ -263,9 +263,11 @@ static transfer_table transfet_tables[12] = {
 	{{0, 2, 4, 6, 8, 9, 7, 5, 3, 1}},
 	//QUANT_12
 	{{0, 4, 8, 2, 6, 10, 11, 7, 3, 9, 5, 1}},
+	//QUANT_16
+	{{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}},
 	//QUANT_20
 	{{0, 4, 8, 12, 16, 2, 6, 10, 14, 18, 19, 15, 11, 7, 3, 17, 13, 9, 5, 1}},
-	//QUANT_20
+	//QUANT_24
 	{{0, 8, 16, 2, 10, 18, 4, 12, 20, 6, 14, 22, 23, 15, 7, 21, 13, 5, 19, 11, 3, 17, 9, 1}},
 	//QUANT_32
 	{{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31}}
@@ -866,6 +868,10 @@ void symbolic_to_physical(
 
 	int bits_for_weights = get_ise_sequence_bitcount(real_weight_count, weight_quant_method);
 
+	int bitcount = bits_for_weights;
+
+	//std::cout << "weights... " << std::endl;
+
 	uint8_t weights[64];
 	if (is_dual_plane) {
 		for (int i = 0; i < weight_count; i++) {
@@ -886,6 +892,8 @@ void symbolic_to_physical(
 			float qw = (uqw / 64.0f) * (weight_qunat_levels - 1.0f);
 			int qwi = static_cast<int>(qw + 0.5f);
 			weights[i] = weight_scramble_map[qwi];
+
+			//std::cout << qwi << " -> " << static_cast<unsigned int>(weights[i]) << std::endl;
 		}
 	}
 
@@ -895,8 +903,10 @@ void symbolic_to_physical(
 		physical_compressed_block[i] = static_cast<uint8_t>(bitrev8(weightbuf[15 - i]));
 	}
 
-	write_bits(symbolic_compressed_block.block_mode_index, 11, 0, physical_compressed_block);
+	write_bits(static_cast<uint16_t>(symbolic_compressed_block.block_mode_index), 11, 0, physical_compressed_block);
 	write_bits(partition_count - 1, 2, 11, physical_compressed_block);
+
+	bitcount += 13;
 
 	int below_weights_pos = 128 - bits_for_weights;
 
@@ -948,7 +958,9 @@ void symbolic_to_physical(
 		}
 	}
 	else {
-		write_bits(symbolic_compressed_block.partition_formats[0], 4, 13, physical_compressed_block);
+		write_bits(static_cast<uint8_t>(symbolic_compressed_block.partition_formats[0]), 4, 13, physical_compressed_block);
+
+		bitcount += 4;
 	}
 
 	// In dual-plane mode, encode the color component of the second plane of weights
@@ -965,14 +977,27 @@ void symbolic_to_physical(
 	const uint8_t* pack_table = color_uquant_to_scrambled_pquant_tables[symbolic_compressed_block.quant_mode - QUANT_6];
 	for (unsigned int i = 0; i < symbolic_compressed_block.partition_count; i++) {
 		int vals = 2 * (symbolic_compressed_block.partition_formats[i] >> 2) + 2;
+
+		//std::cout << "color format... " << symbolic_compressed_block.partition_formats[i] << std::endl;
+		//std::cout << "color vals... " << vals << std::endl;
+
 		assert(vals <= 8);
 		for (int j = 0; j < vals; j++)
 		{
 			values_to_encode[j + valuecount_to_encode] = pack_table[symbolic_compressed_block.packed_color_values[i * 8 + j]];
+			//std::cout << symbolic_compressed_block.packed_color_values[i * 8 + j] << " -> " << static_cast<int>(values_to_encode[j + valuecount_to_encode]) << std::endl;
 		}
 		valuecount_to_encode += vals;
 	}
 
+	bitcount += get_ise_sequence_bitcount(valuecount_to_encode, static_cast<quant_method>(symbolic_compressed_block.quant_mode));
+
 	encode_ise(static_cast<quant_method>(symbolic_compressed_block.quant_mode), valuecount_to_encode,
 		values_to_encode, physical_compressed_block, symbolic_compressed_block.partition_count == 1 ? 17 : 19 + PARTITION_INDEX_BITS);
+
+	//std::cout << "bitcount... " << bitcount << std::endl;
+	//std::cout << "weight count... " << weight_count << std::endl;
+	//std::cout << "weight YX... " << di.weight_x << " " << di.weight_y << std::endl;
+	//std::cout << "weight quant level... " << weight_quant_method << std::endl;
+	//std::cout << "color quant level... " << symbolic_compressed_block.quant_mode << std::endl;
 }

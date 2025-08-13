@@ -131,13 +131,13 @@ fn main(
     @builtin(workgroup_id) group_id: vec3<u32>,
     @builtin(local_invocation_index) local_idx: u32
 ) {
-    
-    let decimation_mode_trial_idx = group_id.x;
-    let num_valid_modes = uniforms.valid_decimation_mode_count;
 
-    let block_idx = decimation_mode_trial_idx / num_valid_modes;
-    let mode_lookup_idx = decimation_mode_trial_idx % num_valid_modes;
+    let block_idx = group_id.x;
+    let mode_lookup_idx = group_id.y;
     let mode_idx = valid_decimation_modes[mode_lookup_idx];
+
+    let num_valid_modes = uniforms.valid_decimation_mode_count;
+    let decimation_mode_trial_idx = block_idx * num_valid_modes + mode_lookup_idx;
 
 
     if(mode_idx >= uniforms.decimation_mode_count) {

@@ -126,10 +126,10 @@ struct UnpackedEndpoints {
 @group(0) @binding(2) var<storage, read> decimation_infos: array<DecimationInfo>;
 @group(0) @binding(3) var<storage, read> texel_to_weight_map: array<TexelToWeightMap>;
 @group(0) @binding(4) var<storage, read> input_blocks: array<InputBlock>;
-@group(0) @binding(5) var<storage, read> final_candidates: array<FinalCandidate>;
-@group(0) @binding(6) var<storage, read> unpacked_endpoints: array<UnpackedEndpoints>;
+@group(0) @binding(5) var<storage, read> unpacked_endpoints: array<UnpackedEndpoints>;
 
-@group(0) @binding(7) var<storage, read_write> output_final_errors: array<f32>;
+@group(0) @binding(6) var<storage, read_write> final_candidates: array<FinalCandidate>;
+@group(0) @binding(7) var<storage, read_write> top_candidates: array<FinalCandidate>;
 
 
 
@@ -155,11 +155,12 @@ fn atomicAdd_f32(atomic_target: ptr<workgroup, atomic<u32>>, value_to_add: f32) 
 
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_index) local_idx: u32) {
-    let candidate_idx = group_id.x;
+
+    let block_idx = group_id.x;
+    let candidate_idx = block_idx * uniforms.tune_candidate_limit + group_id.y;
 
     let bm = block_modes[final_candidates[candidate_idx].block_mode_index];
     let di = decimation_infos[bm.decimation_mode];
-    let block_idx = candidate_idx / uniforms.tune_candidate_limit;
     let partition_count = uniforms.partition_count;
 
     let input_block = input_blocks[block_idx];
@@ -224,7 +225,14 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
 
     //store result
     if(local_idx == 0u) {
-        output_final_errors[candidate_idx] = bitcast<f32>(atomicLoad(&shared_total_error));
+        let total_error = bitcast<f32>(atomicLoad(&shared_total_error));
+
+        final_candidates[candidate_idx].total_error = total_error;
+
+        if(total_error < top_candidates[candidate_idx].total_error) {
+            top_candidates[candidate_idx] = final_candidates[candidate_idx];
+        }
+
     }
 
 }
