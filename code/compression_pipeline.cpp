@@ -135,25 +135,6 @@ static int generateBlockPartitionings(
     return nextOffset;
 }
 
-
-ASTCEncoder::ASTCEncoder(wgpu::Device device, uint32_t textureWidth, uint32_t textureHeight, uint8_t blockXDim, uint8_t blockYDim) {
-
-    if (!device) {
-        throw std::runtime_error("Invalid WebGPU Device");
-    }
-
-    this->device = device;
-    this->queue = device.GetQueue();
-
-    this->textureWidth = textureWidth;
-    this->textureHeight = textureHeight;
-    this->blocksX = (textureWidth + blockXDim - 1) / blockXDim;
-    this->blocksY = (textureHeight + blockYDim - 1) / blockYDim;
-    this->numBlocks = blocksX * blocksY;
-    this->blockXDim = blockXDim;
-    this->blockYDim = blockYDim;
-}
-
 void ASTCEncoder::initMetadata() {
     construct_metadata_structures(blockXDim, blockYDim, block_descriptor);
 
@@ -216,23 +197,88 @@ void ASTCEncoder::initTrialModes() {
     block_descriptor.uniform_variables.valid_block_mode_count = valid_block_modes.size();
 }
 
+ASTCEncoder::ASTCEncoder(const wgpu::Device& device):
+    device(device),
+    queue(device.GetQueue())
+{
 
-void ASTCEncoder::encode(uint8_t* imageData, uint8_t* dataOut, size_t dataLen) {
+    if (!device) {
+        throw std::runtime_error("Invalid WebGPU Device");
+    }
 
-    std::cout << "Total blocks to compress: " << numBlocks << std::endl;
+    //init to some default values
+    this->textureWidth = 0;
+    this->textureHeight = 0;
+    this->blocksX = (textureWidth + 4 - 1) / 4;
+    this->blocksY = (textureHeight + 4 - 1) / 4;
+    this->numBlocks = blocksX * blocksY;
+    this->blockXDim = 4;
+    this->blockYDim = 4;
+}
 
-    //initialize compression metadata
+void ASTCEncoder::init() {
+    if (is_initialized) {
+        return;
+    }
+
+    std::cout << "Initializing ASTCEncoder for the first time..." << std::endl;
+
+    std::cout << "Initializing bind group layouts..." << std::endl;
+    initBindGroupLayouts();
+    std::cout << "Initializing pipelines..." << std::endl;
+    initPipelines();
+
+    is_initialized = true;
+    std::cout << "ASTCEncoder initialization complete." << std::endl;
+}
+
+#if defined(EMSCRIPTEN)
+void ASTCEncoder::initAsync(std::function<void()> on_initialized) {
+    if (is_initialized) {
+        if (on_initialized) {
+            on_initialized();
+        }
+        return;
+    }
+
+    std::cout << "Initializing ASTCEncoder for the first time..." << std::endl;
+
+    std::cout << "Initializing bind group layouts..." << std::endl;
+    initBindGroupLayouts();
+
+    std::cout << "Initializing pipelines (Async)..." << std::endl;
+    auto on_init_shared = std::make_shared<std::function<void()>>(on_initialized);
+    initPipelinesAsync([this, on_init_shared]() {
+        this->is_initialized = true;
+        std::cout << "ASTCEncoder initialization complete." << std::endl;
+
+        if (*on_init_shared) {
+            (*on_init_shared)();
+        }
+    });
+
+}
+#endif
+
+void ASTCEncoder::secondaryInit(uint32_t textureWidth, uint32_t textureHeight, uint8_t blockXDim, uint8_t blockYDim) {
+
+    //if there are any old resources release them before initializing them again
+    releasePerImageResources();
+
+    this->textureWidth = textureWidth;
+    this->textureHeight = textureHeight;
+    this->blocksX = (textureWidth + blockXDim - 1) / blockXDim;
+    this->blocksY = (textureHeight + blockYDim - 1) / blockYDim;
+    this->numBlocks = blocksX * blocksY;
+    this->blockXDim = blockXDim;
+    this->blockYDim = blockYDim;
+
     std::cout << "Precomputing compression data..." << std::endl;
     initMetadata();
     initTrialModes();
 
-    //initialize buffers, pipelines and bind groups
-    std::cout << "Initializing bind group layouts..." << std::endl;
-    initBindGroupLayouts();
     std::cout << "Initializing storage buffers..." << std::endl;
     initBuffers();
-    std::cout << "Initializing pipelines..." << std::endl;
-    initPipelines();
     std::cout << "Initializing bind groups..." << std::endl;
     initBindGroups();
 
@@ -252,7 +298,11 @@ void ASTCEncoder::encode(uint8_t* imageData, uint8_t* dataOut, size_t dataLen) {
     //write to sin and cos table buffers
     queue.WriteBuffer(sinBuffer, 0, sin_table.data(), SINCOS_STEPS * ANGULAR_STEPS * sizeof(float));
     queue.WriteBuffer(cosBuffer, 0, cos_table.data(), SINCOS_STEPS * ANGULAR_STEPS * sizeof(float));
+}
 
+void ASTCEncoder::encode(uint8_t* imageData, uint8_t* dataOut, size_t dataLen) {
+
+    std::cout << "Total blocks to compress: " << numBlocks << std::endl;
 
     //get image blocks
     std::cout << "Preparing image blocks..." << std::endl;
@@ -414,6 +464,7 @@ void ASTCEncoder::encode(uint8_t* imageData, uint8_t* dataOut, size_t dataLen) {
         int offset = i * 16;
         uint8_t* outputBlock = dataOut + offset;
         symbolic_to_physical(block_descriptor, best_symbolic_blocks[i], outputBlock);
+        std::cout << "Block: " << best_symbolic_blocks[i].errorval << std::endl;
     }
 
     std::cout << "Encoding complete." << std::endl;

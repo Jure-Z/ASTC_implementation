@@ -325,6 +325,12 @@ void ASTCEncoder::initPipelines() {
     pass18_pickBestCandidateShader = prepareShaderModule(device, SHADER_DIR "/pass18_pick_best_candidate.wgsl", "pick best candidate (pass18)");
 #endif
 
+    if (!pass1_idealEndpointsShader) {
+        std::cerr << "FATAL ERROR: Failed to create shader module for pass 1. Check shader file paths." << std::endl;
+        // You could even throw an exception here to halt execution
+        throw std::runtime_error("Failed to load a critical shader.");
+    }
+
     //pass1 compute pipeline
     wgpu::PipelineLayoutDescriptor pass1_layoutDesc = {};
     pass1_layoutDesc.bindGroupLayoutCount = 1;
@@ -676,6 +682,449 @@ void ASTCEncoder::initPipelines() {
 
     pass18_pipeline = device.CreateComputePipeline(&pass18_pipelineDesc);
 }
+
+#if defined(EMSCRIPTEN)
+void ASTCEncoder::initPipelinesAsync(std::function<void()> on_all_pipelines_created) {
+
+    //callback that will be used for all pipeline creations
+    auto master_callback_ptr = std::make_shared<std::function<void(WGPUCreatePipelineAsyncStatus, WGPUComputePipeline, char const*, void*)>>(
+        [=, this](WGPUCreatePipelineAsyncStatus status, WGPUComputePipeline pipeline, char const* message, void* userdata) {
+
+            ASTCEncoder* encoder = static_cast<ASTCEncoder*>(userdata);
+            if (status != WGPUCreatePipelineAsyncStatus_Success) {
+                std::cerr << "FATAL: Failed to create a compute pipeline: " << message << std::endl;
+            }
+
+            encoder->m_pending_pipelines--;
+            //std::cout << "Pipelines remaining:" << m_pending_pipelines << std::endl;
+
+            if (encoder->m_pending_pipelines == 0) {
+                std::cout << "All compute pipelines have been created successfully." << std::endl;
+                on_all_pipelines_created();
+            }
+        });
+
+    pass1_idealEndpointsShader = prepareShaderModule(device, "/shaders/pass1_ideal_endpoints_and_weights.wgsl", "Ideal endpoints and weights (pass1)");
+    pass2_decimatedWeightsShader = prepareShaderModule(device, "/shaders/pass2_decimated_weights.wgsl", "decimated weights (pass2)");
+    pass3_angularOffsetsShader = prepareShaderModule(device, "/shaders/pass3_compute_angular_offsets.wgsl", "angular offsets (pass3)");
+    pass4_lowestAndHighestWeightShader = prepareShaderModule(device, "/shaders/pass4_lowest_and_highest_weight.wgsl", "lowest and highest weight (pass4)");
+    pass5_valuesForQuantLevelsShader = prepareShaderModule(device, "/shaders/pass5_best_values_for_quant_levels.wgsl", "best values for quant levels (pass5)");
+    pass6_remapLowAndHighValuesShader = prepareShaderModule(device, "/shaders/pass6_remap_low_and_high_values.wgsl", "remap low and high values (pass6)");
+    pass7_weightsAndErrorForBMShader = prepareShaderModule(device, "/shaders/pass7_weights_and_error_for_bm.wgsl", "weights and error for block mode (pass7)");
+    pass8_encodingChoiceErrorsShader = prepareShaderModule(device, "/shaders/pass8_compute_encoding_choice_errors.wgsl", "encoding choice errors (pass8)");
+    pass9_computeColorErrorShader = prepareShaderModule(device, "/shaders/pass9_compute_color_error.wgsl", "color format errors (pass9)");
+    pass10_colorEndpointCombinationsShader_2part = prepareShaderModule(device, "/shaders/pass10_color_combinations_for_quant_2part.wgsl", "color endpoint combinations (pass10, 2part)");
+    pass10_colorEndpointCombinationsShader_3part = prepareShaderModule(device, "/shaders/pass10_color_combinations_for_quant_3part.wgsl", "color endpoint combinations (pass10, 3part)");
+    pass10_colorEndpointCombinationsShader_4part = prepareShaderModule(device, "/shaders/pass10_color_combinations_for_quant_4part.wgsl", "color endpoint combinations (pass10, 4part)");
+    pass11_bestEndpointCombinationsForModeShader_1part = prepareShaderModule(device, "/shaders/pass11_best_color_combination_for_mode_1part.wgsl", "best endpoint combinations for mode (pass11, 1part)");
+    pass11_bestEndpointCombinationsForModeShader_2part = prepareShaderModule(device, "/shaders/pass11_best_color_combination_for_mode_2part.wgsl", "best endpoint combinations for mode (pass11, 2part)");
+    pass11_bestEndpointCombinationsForModeShader_3part = prepareShaderModule(device, "/shaders/pass11_best_color_combination_for_mode_3part.wgsl", "best endpoint combinations for mode (pass11, 3part)");
+    pass11_bestEndpointCombinationsForModeShader_4part = prepareShaderModule(device, "/shaders/pass11_best_color_combination_for_mode_4part.wgsl", "best endpoint combinations for mode (pass11, 4part)");
+    pass12_findTopNCandidatesShader = prepareShaderModule(device, "/shaders/pass12_find_top_N_candidates.wgsl", "find top N candidates (pass12)");
+    pass13_recomputeIdealEndpointsShader = prepareShaderModule(device, "/shaders/pass13_recompute_ideal_endpoints.wgsl", "recompute ideal endpoints (pass13)");
+    pass14_packColorEndpointsShader = prepareShaderModule(device, "/shaders/pass14_pack_color_endpoints.wgsl", "pack color endpoints (pass14)");
+    pass15_unpackColorEndpointsShader = prepareShaderModule(device, "/shaders/pass15_unpack_color_endpoints.wgsl", "unpack color endpoints (pass15)");
+    pass16_realignWeightsShader = prepareShaderModule(device, "/shaders/pass16_realign_weights.wgsl", "realign weights (pass16)");
+    pass17_computeFinalErrorShader = prepareShaderModule(device, "/shaders/pass17_compute_final_error.wgsl", "compute final error (pass17)");
+    pass18_pickBestCandidateShader = prepareShaderModule(device, "/shaders/pass18_pick_best_candidate.wgsl", "pick best candidate (pass18)");
+
+
+    const int total_pipelines = 23;
+    m_pending_pipelines = total_pipelines;
+
+    struct PipelineCreationInfo {
+        ASTCEncoder* encoder;
+        wgpu::ComputePipeline* target;
+        std::shared_ptr<std::function<void(WGPUCreatePipelineAsyncStatus, WGPUComputePipeline, char const*, void*)>> master_callback;
+    };
+
+    auto pipeline_callback = [](WGPUCreatePipelineAsyncStatus status, WGPUComputePipeline p, char const* msg, void* userdata) {
+
+        auto* info = static_cast<PipelineCreationInfo*>(userdata);
+
+        if (status == WGPUCreatePipelineAsyncStatus_Success) {
+            *info->target = wgpu::ComputePipeline::Acquire(p);
+        }
+
+        (*info->master_callback)(status, p, msg, info->encoder);
+
+        delete info;
+    };
+
+    //pass1 compute pipeline
+    wgpu::PipelineLayoutDescriptor pass1_layoutDesc = {};
+    pass1_layoutDesc.bindGroupLayoutCount = 1;
+    pass1_layoutDesc.bindGroupLayouts = &pass1_bindGroupLayout;
+    wgpu::PipelineLayout pass1_pipelineLayout = device.CreatePipelineLayout(&pass1_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass1_pipelineDesc = {};
+    pass1_pipelineDesc.compute.constantCount = 0;
+    pass1_pipelineDesc.compute.constants = nullptr;
+    pass1_pipelineDesc.compute.entryPoint = "main";
+    pass1_pipelineDesc.compute.module = pass1_idealEndpointsShader;
+    pass1_pipelineDesc.layout = pass1_pipelineLayout;
+
+    auto* info1 = new PipelineCreationInfo{ this, &pass1_pipeline, master_callback_ptr };
+    device.CreateComputePipelineAsync(&pass1_pipelineDesc, pipeline_callback, info1);
+
+    //pass2 compute pipeline
+    wgpu::PipelineLayoutDescriptor pass2_layoutDesc = {};
+    pass2_layoutDesc.bindGroupLayoutCount = 1;
+    pass2_layoutDesc.bindGroupLayouts = &pass2_bindGroupLayout;
+    wgpu::PipelineLayout pass2_pipelineLayout = device.CreatePipelineLayout(&pass2_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass2_pipelineDesc = {};
+    pass2_pipelineDesc.compute.constantCount = 0;
+    pass2_pipelineDesc.compute.constants = nullptr;
+    pass2_pipelineDesc.compute.entryPoint = "main";
+    pass2_pipelineDesc.compute.module = pass2_decimatedWeightsShader;
+    pass2_pipelineDesc.layout = pass2_pipelineLayout;
+
+    auto* info2 = new PipelineCreationInfo{ this, &pass2_pipeline, master_callback_ptr };
+    device.CreateComputePipelineAsync(&pass2_pipelineDesc, pipeline_callback, info2);
+
+
+    //pass3 compute pipeline
+    wgpu::PipelineLayoutDescriptor pass3_layoutDesc = {};
+    pass3_layoutDesc.bindGroupLayoutCount = 1;
+    pass3_layoutDesc.bindGroupLayouts = &pass3_bindGroupLayout;
+    wgpu::PipelineLayout pass3_pipelineLayout = device.CreatePipelineLayout(&pass3_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass3_pipelineDesc = {};
+    pass3_pipelineDesc.compute.constantCount = 0;
+    pass3_pipelineDesc.compute.constants = nullptr;
+    pass3_pipelineDesc.compute.entryPoint = "main";
+    pass3_pipelineDesc.compute.module = pass3_angularOffsetsShader;
+    pass3_pipelineDesc.layout = pass3_pipelineLayout;
+
+    auto* info3 = new PipelineCreationInfo{ this, &pass3_pipeline, master_callback_ptr };
+    device.CreateComputePipelineAsync(&pass3_pipelineDesc, pipeline_callback, info3);
+
+
+    //pass4 compute pipeline
+    wgpu::PipelineLayoutDescriptor pass4_layoutDesc = {};
+    pass4_layoutDesc.bindGroupLayoutCount = 1;
+    pass4_layoutDesc.bindGroupLayouts = &pass4_bindGroupLayout;
+    wgpu::PipelineLayout pass4_pipelineLayout = device.CreatePipelineLayout(&pass4_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass4_pipelineDesc = {};
+    pass4_pipelineDesc.compute.constantCount = 0;
+    pass4_pipelineDesc.compute.constants = nullptr;
+    pass4_pipelineDesc.compute.entryPoint = "main";
+    pass4_pipelineDesc.compute.module = pass4_lowestAndHighestWeightShader;
+    pass4_pipelineDesc.layout = pass4_pipelineLayout;
+
+    auto* info4 = new PipelineCreationInfo{ this, &pass4_pipeline, master_callback_ptr };
+    device.CreateComputePipelineAsync(&pass4_pipelineDesc, pipeline_callback, info4);
+
+
+    //pass5 compute pipeline
+    wgpu::PipelineLayoutDescriptor pass5_layoutDesc = {};
+    pass5_layoutDesc.bindGroupLayoutCount = 1;
+    pass5_layoutDesc.bindGroupLayouts = &pass5_bindGroupLayout;
+    wgpu::PipelineLayout pass5_pipelineLayout = device.CreatePipelineLayout(&pass5_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass5_pipelineDesc = {};
+    pass5_pipelineDesc.compute.constantCount = 0;
+    pass5_pipelineDesc.compute.constants = nullptr;
+    pass5_pipelineDesc.compute.entryPoint = "main";
+    pass5_pipelineDesc.compute.module = pass5_valuesForQuantLevelsShader;
+    pass5_pipelineDesc.layout = pass5_pipelineLayout;
+
+    auto* info5 = new PipelineCreationInfo{ this, &pass5_pipeline, master_callback_ptr };
+    device.CreateComputePipelineAsync(&pass5_pipelineDesc, pipeline_callback, info5);
+
+
+    //pass6 compute pipeline
+    wgpu::PipelineLayoutDescriptor pass6_layoutDesc = {};
+    pass6_layoutDesc.bindGroupLayoutCount = 1;
+    pass6_layoutDesc.bindGroupLayouts = &pass6_bindGroupLayout;
+    wgpu::PipelineLayout pass6_pipelineLayout = device.CreatePipelineLayout(&pass6_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass6_pipelineDesc = {};
+    pass6_pipelineDesc.compute.constantCount = 0;
+    pass6_pipelineDesc.compute.constants = nullptr;
+    pass6_pipelineDesc.compute.entryPoint = "main";
+    pass6_pipelineDesc.compute.module = pass6_remapLowAndHighValuesShader;
+    pass6_pipelineDesc.layout = pass6_pipelineLayout;
+
+    auto* info6 = new PipelineCreationInfo{ this, &pass6_pipeline, master_callback_ptr };
+    device.CreateComputePipelineAsync(&pass6_pipelineDesc, pipeline_callback, info6);
+
+
+    //pass7 compute pipeline
+    wgpu::PipelineLayoutDescriptor pass7_layoutDesc = {};
+    pass7_layoutDesc.bindGroupLayoutCount = 1;
+    pass7_layoutDesc.bindGroupLayouts = &pass7_bindGroupLayout;
+    wgpu::PipelineLayout pass7_pipelineLayout = device.CreatePipelineLayout(&pass7_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass7_pipelineDesc = {};
+    pass7_pipelineDesc.compute.constantCount = 0;
+    pass7_pipelineDesc.compute.constants = nullptr;
+    pass7_pipelineDesc.compute.entryPoint = "main";
+    pass7_pipelineDesc.compute.module = pass7_weightsAndErrorForBMShader;
+    pass7_pipelineDesc.layout = pass7_pipelineLayout;
+
+    auto* info7 = new PipelineCreationInfo{ this, &pass7_pipeline, master_callback_ptr };
+    device.CreateComputePipelineAsync(&pass7_pipelineDesc, pipeline_callback, info7);
+
+    //pass8 compute pipeline
+    wgpu::PipelineLayoutDescriptor pass8_layoutDesc = {};
+    pass8_layoutDesc.bindGroupLayoutCount = 1;
+    pass8_layoutDesc.bindGroupLayouts = &pass8_bindGroupLayout;
+    wgpu::PipelineLayout pass8_pipelineLayout = device.CreatePipelineLayout(&pass8_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass8_pipelineDesc = {};
+    pass8_pipelineDesc.compute.constantCount = 0;
+    pass8_pipelineDesc.compute.constants = nullptr;
+    pass8_pipelineDesc.compute.entryPoint = "main";
+    pass8_pipelineDesc.compute.module = pass8_encodingChoiceErrorsShader;
+    pass8_pipelineDesc.layout = pass8_pipelineLayout;
+
+    auto* info8 = new PipelineCreationInfo{ this, &pass8_pipeline, master_callback_ptr };
+    device.CreateComputePipelineAsync(&pass8_pipelineDesc, pipeline_callback, info8);
+
+    //pass9 compute pipeline
+    wgpu::PipelineLayoutDescriptor pass9_layoutDesc = {};
+    pass9_layoutDesc.bindGroupLayoutCount = 1;
+    pass9_layoutDesc.bindGroupLayouts = &pass9_bindGroupLayout;
+    wgpu::PipelineLayout pass9_pipelineLayout = device.CreatePipelineLayout(&pass9_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass9_pipelineDesc = {};
+    pass9_pipelineDesc.compute.constantCount = 0;
+    pass9_pipelineDesc.compute.constants = nullptr;
+    pass9_pipelineDesc.compute.entryPoint = "main";
+    pass9_pipelineDesc.compute.module = pass9_computeColorErrorShader;
+    pass9_pipelineDesc.layout = pass9_pipelineLayout;
+
+    auto* info9 = new PipelineCreationInfo{ this, &pass9_pipeline, master_callback_ptr };
+    device.CreateComputePipelineAsync(&pass9_pipelineDesc, pipeline_callback, info9);
+
+    //pass10 2partitions compute pipeline
+    wgpu::PipelineLayoutDescriptor pass10_2_layoutDesc = {};
+    pass10_2_layoutDesc.bindGroupLayoutCount = 1;
+    pass10_2_layoutDesc.bindGroupLayouts = &pass10_bindGroupLayout;
+    wgpu::PipelineLayout pass10_2_pipelineLayout = device.CreatePipelineLayout(&pass10_2_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass10_2_pipelineDesc = {};
+    pass10_2_pipelineDesc.compute.constantCount = 0;
+    pass10_2_pipelineDesc.compute.constants = nullptr;
+    pass10_2_pipelineDesc.compute.entryPoint = "main";
+    pass10_2_pipelineDesc.compute.module = pass10_colorEndpointCombinationsShader_2part;
+    pass10_2_pipelineDesc.layout = pass10_2_pipelineLayout;
+
+    auto* info10_2 = new PipelineCreationInfo{ this, &pass10_pipeline_2part, master_callback_ptr };
+    device.CreateComputePipelineAsync(&pass10_2_pipelineDesc, pipeline_callback, info10_2);
+
+    //pass10 3partitions compute pipeline
+    wgpu::PipelineLayoutDescriptor pass10_3_layoutDesc = {};
+    pass10_3_layoutDesc.bindGroupLayoutCount = 1;
+    pass10_3_layoutDesc.bindGroupLayouts = &pass10_bindGroupLayout;
+    wgpu::PipelineLayout pass10_3_pipelineLayout = device.CreatePipelineLayout(&pass10_3_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass10_3_pipelineDesc = {};
+    pass10_3_pipelineDesc.compute.constantCount = 0;
+    pass10_3_pipelineDesc.compute.constants = nullptr;
+    pass10_3_pipelineDesc.compute.entryPoint = "main";
+    pass10_3_pipelineDesc.compute.module = pass10_colorEndpointCombinationsShader_3part;
+    pass10_3_pipelineDesc.layout = pass10_3_pipelineLayout;
+
+    auto* info10_3 = new PipelineCreationInfo{ this, &pass10_pipeline_3part, master_callback_ptr };
+    device.CreateComputePipelineAsync(&pass10_3_pipelineDesc, pipeline_callback, info10_3);
+
+    //pass10 4partitions compute pipeline
+    wgpu::PipelineLayoutDescriptor pass10_4_layoutDesc = {};
+    pass10_4_layoutDesc.bindGroupLayoutCount = 1;
+    pass10_4_layoutDesc.bindGroupLayouts = &pass10_bindGroupLayout;
+    wgpu::PipelineLayout pass10_4_pipelineLayout = device.CreatePipelineLayout(&pass10_4_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass10_4_pipelineDesc = {};
+    pass10_4_pipelineDesc.compute.constantCount = 0;
+    pass10_4_pipelineDesc.compute.constants = nullptr;
+    pass10_4_pipelineDesc.compute.entryPoint = "main";
+    pass10_4_pipelineDesc.compute.module = pass10_colorEndpointCombinationsShader_4part;
+    pass10_4_pipelineDesc.layout = pass10_4_pipelineLayout;
+
+    auto* info10_4 = new PipelineCreationInfo{ this, &pass10_pipeline_4part, master_callback_ptr };
+    device.CreateComputePipelineAsync(&pass10_4_pipelineDesc, pipeline_callback, info10_4);
+
+    //pass11 1partition compute pipeline
+    wgpu::PipelineLayoutDescriptor pass11_1_layoutDesc = {};
+    pass11_1_layoutDesc.bindGroupLayoutCount = 1;
+    pass11_1_layoutDesc.bindGroupLayouts = &pass11_bindGroupLayout_1part;
+    wgpu::PipelineLayout pass11_1_pipelineLayout = device.CreatePipelineLayout(&pass11_1_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass11_1_pipelineDesc = {};
+    pass11_1_pipelineDesc.compute.constantCount = 0;
+    pass11_1_pipelineDesc.compute.constants = nullptr;
+    pass11_1_pipelineDesc.compute.entryPoint = "main";
+    pass11_1_pipelineDesc.compute.module = pass11_bestEndpointCombinationsForModeShader_1part;
+    pass11_1_pipelineDesc.layout = pass11_1_pipelineLayout;
+
+    auto* info11_1 = new PipelineCreationInfo{ this, &pass11_pipeline_1part, master_callback_ptr };
+    device.CreateComputePipelineAsync(&pass11_1_pipelineDesc, pipeline_callback, info11_1);
+
+    //pass11 2partitions compute pipeline
+    wgpu::PipelineLayoutDescriptor pass11_2_layoutDesc = {};
+    pass11_2_layoutDesc.bindGroupLayoutCount = 1;
+    pass11_2_layoutDesc.bindGroupLayouts = &pass11_bindGroupLayout_234part;
+    wgpu::PipelineLayout pass11_2_pipelineLayout = device.CreatePipelineLayout(&pass11_2_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass11_2_pipelineDesc = {};
+    pass11_2_pipelineDesc.compute.constantCount = 0;
+    pass11_2_pipelineDesc.compute.constants = nullptr;
+    pass11_2_pipelineDesc.compute.entryPoint = "main";
+    pass11_2_pipelineDesc.compute.module = pass11_bestEndpointCombinationsForModeShader_2part;
+    pass11_2_pipelineDesc.layout = pass11_2_pipelineLayout;
+
+    auto* info11_2 = new PipelineCreationInfo{ this, &pass11_pipeline_2part, master_callback_ptr };
+    device.CreateComputePipelineAsync(&pass11_2_pipelineDesc, pipeline_callback, info11_2);
+
+    //pass11 3partitions compute pipeline
+    wgpu::PipelineLayoutDescriptor pass11_3_layoutDesc = {};
+    pass11_3_layoutDesc.bindGroupLayoutCount = 1;
+    pass11_3_layoutDesc.bindGroupLayouts = &pass11_bindGroupLayout_234part;
+    wgpu::PipelineLayout pass11_3_pipelineLayout = device.CreatePipelineLayout(&pass11_3_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass11_3_pipelineDesc = {};
+    pass11_3_pipelineDesc.compute.constantCount = 0;
+    pass11_3_pipelineDesc.compute.constants = nullptr;
+    pass11_3_pipelineDesc.compute.entryPoint = "main";
+    pass11_3_pipelineDesc.compute.module = pass11_bestEndpointCombinationsForModeShader_3part;
+    pass11_3_pipelineDesc.layout = pass11_3_pipelineLayout;
+
+    auto* info11_3 = new PipelineCreationInfo{ this, &pass11_pipeline_3part, master_callback_ptr };
+    device.CreateComputePipelineAsync(&pass11_3_pipelineDesc, pipeline_callback, info11_3);
+
+    //pass11 4partitions compute pipeline
+    wgpu::PipelineLayoutDescriptor pass11_4_layoutDesc = {};
+    pass11_4_layoutDesc.bindGroupLayoutCount = 1;
+    pass11_4_layoutDesc.bindGroupLayouts = &pass11_bindGroupLayout_234part;
+    wgpu::PipelineLayout pass11_4_pipelineLayout = device.CreatePipelineLayout(&pass11_4_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass11_4_pipelineDesc = {};
+    pass11_4_pipelineDesc.compute.constantCount = 0;
+    pass11_4_pipelineDesc.compute.constants = nullptr;
+    pass11_4_pipelineDesc.compute.entryPoint = "main";
+    pass11_4_pipelineDesc.compute.module = pass11_bestEndpointCombinationsForModeShader_4part;
+    pass11_4_pipelineDesc.layout = pass11_4_pipelineLayout;
+
+    auto* info11_4 = new PipelineCreationInfo{ this, &pass11_pipeline_4part, master_callback_ptr };
+    device.CreateComputePipelineAsync(&pass11_4_pipelineDesc, pipeline_callback, info11_4);
+
+    //pass12 compute pipeline
+    wgpu::PipelineLayoutDescriptor pass12_layoutDesc = {};
+    pass12_layoutDesc.bindGroupLayoutCount = 1;
+    pass12_layoutDesc.bindGroupLayouts = &pass12_bindGroupLayout;
+    wgpu::PipelineLayout pass12_pipelineLayout = device.CreatePipelineLayout(&pass12_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass12_pipelineDesc = {};
+    pass12_pipelineDesc.compute.constantCount = 0;
+    pass12_pipelineDesc.compute.constants = nullptr;
+    pass12_pipelineDesc.compute.entryPoint = "main";
+    pass12_pipelineDesc.compute.module = pass12_findTopNCandidatesShader;
+    pass12_pipelineDesc.layout = pass12_pipelineLayout;
+
+    auto* info12 = new PipelineCreationInfo{ this, &pass12_pipeline, master_callback_ptr };
+    device.CreateComputePipelineAsync(&pass12_pipelineDesc, pipeline_callback, info12);
+
+    //pass13 compute pipeline
+    wgpu::PipelineLayoutDescriptor pass13_layoutDesc = {};
+    pass13_layoutDesc.bindGroupLayoutCount = 1;
+    pass13_layoutDesc.bindGroupLayouts = &pass13_bindGroupLayout;
+    wgpu::PipelineLayout pass13_pipelineLayout = device.CreatePipelineLayout(&pass13_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass13_pipelineDesc = {};
+    pass13_pipelineDesc.compute.constantCount = 0;
+    pass13_pipelineDesc.compute.constants = nullptr;
+    pass13_pipelineDesc.compute.entryPoint = "main";
+    pass13_pipelineDesc.compute.module = pass13_recomputeIdealEndpointsShader;
+    pass13_pipelineDesc.layout = pass13_pipelineLayout;
+
+    auto* info13 = new PipelineCreationInfo{ this, &pass13_pipeline, master_callback_ptr };
+    device.CreateComputePipelineAsync(&pass13_pipelineDesc, pipeline_callback, info13);
+
+    //pass14 compute pipeline
+    wgpu::PipelineLayoutDescriptor pass14_layoutDesc = {};
+    pass14_layoutDesc.bindGroupLayoutCount = 1;
+    pass14_layoutDesc.bindGroupLayouts = &pass14_bindGroupLayout;
+    wgpu::PipelineLayout pass14_pipelineLayout = device.CreatePipelineLayout(&pass14_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass14_pipelineDesc = {};
+    pass14_pipelineDesc.compute.constantCount = 0;
+    pass14_pipelineDesc.compute.constants = nullptr;
+    pass14_pipelineDesc.compute.entryPoint = "main";
+    pass14_pipelineDesc.compute.module = pass14_packColorEndpointsShader;
+    pass14_pipelineDesc.layout = pass14_pipelineLayout;
+
+    auto* info14 = new PipelineCreationInfo{ this, &pass14_pipeline, master_callback_ptr };
+    device.CreateComputePipelineAsync(&pass14_pipelineDesc, pipeline_callback, info14);
+
+    //pass15 compute pipeline
+    wgpu::PipelineLayoutDescriptor pass15_layoutDesc = {};
+    pass15_layoutDesc.bindGroupLayoutCount = 1;
+    pass15_layoutDesc.bindGroupLayouts = &pass15_bindGroupLayout;
+    wgpu::PipelineLayout pass15_pipelineLayout = device.CreatePipelineLayout(&pass15_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass15_pipelineDesc = {};
+    pass15_pipelineDesc.compute.constantCount = 0;
+    pass15_pipelineDesc.compute.constants = nullptr;
+    pass15_pipelineDesc.compute.entryPoint = "main";
+    pass15_pipelineDesc.compute.module = pass15_unpackColorEndpointsShader;
+    pass15_pipelineDesc.layout = pass15_pipelineLayout;
+
+    auto* info15 = new PipelineCreationInfo{ this, &pass15_pipeline, master_callback_ptr };
+    device.CreateComputePipelineAsync(&pass15_pipelineDesc, pipeline_callback, info15);
+
+    //pass16 compute pipeline
+    wgpu::PipelineLayoutDescriptor pass16_layoutDesc = {};
+    pass16_layoutDesc.bindGroupLayoutCount = 1;
+    pass16_layoutDesc.bindGroupLayouts = &pass16_bindGroupLayout;
+    wgpu::PipelineLayout pass16_pipelineLayout = device.CreatePipelineLayout(&pass16_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass16_pipelineDesc = {};
+    pass16_pipelineDesc.compute.constantCount = 0;
+    pass16_pipelineDesc.compute.constants = nullptr;
+    pass16_pipelineDesc.compute.entryPoint = "main";
+    pass16_pipelineDesc.compute.module = pass16_realignWeightsShader;
+    pass16_pipelineDesc.layout = pass16_pipelineLayout;
+
+    auto* info16 = new PipelineCreationInfo{ this, &pass16_pipeline, master_callback_ptr };
+    device.CreateComputePipelineAsync(&pass16_pipelineDesc, pipeline_callback, info16);
+
+    //pass17 compute pipeline
+    wgpu::PipelineLayoutDescriptor pass17_layoutDesc = {};
+    pass17_layoutDesc.bindGroupLayoutCount = 1;
+    pass17_layoutDesc.bindGroupLayouts = &pass17_bindGroupLayout;
+    wgpu::PipelineLayout pass17_pipelineLayout = device.CreatePipelineLayout(&pass17_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass17_pipelineDesc = {};
+    pass17_pipelineDesc.compute.constantCount = 0;
+    pass17_pipelineDesc.compute.constants = nullptr;
+    pass17_pipelineDesc.compute.entryPoint = "main";
+    pass17_pipelineDesc.compute.module = pass17_computeFinalErrorShader;
+    pass17_pipelineDesc.layout = pass17_pipelineLayout;
+
+    auto* info17 = new PipelineCreationInfo{ this, &pass17_pipeline, master_callback_ptr };
+    device.CreateComputePipelineAsync(&pass17_pipelineDesc, pipeline_callback, info17);
+
+    //pass18 compute pipeline
+    wgpu::PipelineLayoutDescriptor pass18_layoutDesc = {};
+    pass18_layoutDesc.bindGroupLayoutCount = 1;
+    pass18_layoutDesc.bindGroupLayouts = &pass18_bindGroupLayout;
+    wgpu::PipelineLayout pass18_pipelineLayout = device.CreatePipelineLayout(&pass18_layoutDesc);
+
+    wgpu::ComputePipelineDescriptor pass18_pipelineDesc = {};
+    pass18_pipelineDesc.compute.constantCount = 0;
+    pass18_pipelineDesc.compute.constants = nullptr;
+    pass18_pipelineDesc.compute.entryPoint = "main";
+    pass18_pipelineDesc.compute.module = pass18_pickBestCandidateShader;
+    pass18_pipelineDesc.layout = pass18_pipelineLayout;
+
+    auto* info18 = new PipelineCreationInfo{ this, &pass18_pipeline, master_callback_ptr };
+    device.CreateComputePipelineAsync(&pass18_pipelineDesc, pipeline_callback, info18);
+}
+#endif
 
 void ASTCEncoder::initBuffers() {
 
@@ -1167,4 +1616,40 @@ void ASTCEncoder::initBindGroups() {
     bg18_desc.entryCount = bg18_entries.size();
     bg18_desc.entries = bg18_entries.data();
     pass18_bindGroup = device.CreateBindGroup(&bg18_desc);
+}
+
+void ASTCEncoder::releasePerImageResources() {
+    // This function explicitly destroys all GPU buffers that are created
+    // on a per-image basis, preventing memory leaks.
+    if (uniformsBuffer) uniformsBuffer.Destroy();
+    if (blockModesBuffer) blockModesBuffer.Destroy();
+    if (blockModeIndexBuffer) blockModeIndexBuffer.Destroy();
+    if (decimationModesBuffer) decimationModesBuffer.Destroy();
+    if (decimationInfoBuffer) decimationInfoBuffer.Destroy();
+    if (texelToWeightMapBuffer) texelToWeightMapBuffer.Destroy();
+    if (weightToTexelMapBuffer) weightToTexelMapBuffer.Destroy();
+    if (validDecimationModesBuffer) validDecimationModesBuffer.Destroy();
+    if (validBlockModesBuffer) validBlockModesBuffer.Destroy();
+    if (sinBuffer) sinBuffer.Destroy();
+    if (cosBuffer) cosBuffer.Destroy();
+    if (inputBlocksBuffer) inputBlocksBuffer.Destroy();
+    if (pass1_output_idealEndpointsAndWeights) pass1_output_idealEndpointsAndWeights.Destroy();
+    if (pass2_output_decimatedWeights) pass2_output_decimatedWeights.Destroy();
+    if (pass3_output_angular_offsets) pass3_output_angular_offsets.Destroy();
+    if (pass4_output_lowestAndHighestWeight) pass4_output_lowestAndHighestWeight.Destroy();
+    if (pass5_output_lowValues) pass5_output_lowValues.Destroy();
+    if (pass5_output_highValues) pass5_output_highValues.Destroy();
+    if (pass6_output_finalValueRanges) pass6_output_finalValueRanges.Destroy();
+    if (pass7_output_quantizationResults) pass7_output_quantizationResults.Destroy();
+    if (pass8_output_encodingChoiceErrors) pass8_output_encodingChoiceErrors.Destroy();
+    if (pass9_output_colorFormatErrors) pass9_output_colorFormatErrors.Destroy();
+    if (pass9_output_colorFormats) pass9_output_colorFormats.Destroy();
+    if (pass10_output_colorEndpointCombinations) pass10_output_colorEndpointCombinations.Destroy();
+    if (pass11_output_bestEndpointCombinationsForMode) pass11_output_bestEndpointCombinationsForMode.Destroy();
+    if (pass12_output_finalCandidates) pass12_output_finalCandidates.Destroy();
+    if (pass12_output_topCandidates) pass12_output_topCandidates.Destroy();
+    if (pass13_output_rgbsVectors) pass13_output_rgbsVectors.Destroy();
+    if (pass15_output_unpackedEndpoints) pass15_output_unpackedEndpoints.Destroy();
+    if (pass18_output_symbolicBlocks) pass18_output_symbolicBlocks.Destroy();
+    if (outputReadbackBuffer) outputReadbackBuffer.Destroy();
 }

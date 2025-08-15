@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGPU ASTC Encoder</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            margin-top: 50px;
+            background-color: #f0f0f0;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        .container {
+            background-color: white;
+            padding: 2em;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: inline-block;
+        }
+
+        #imageInput {
+            margin-top: 1em;
+        }
+
+        #status {
+            margin-top: 20px;
+            font-style: italic;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>WebGPU ASTC Encoder</h1>
+        <p>Select an image to compress into an ASTC file.</p>
+
+        <div>
+            <label for="blockSizeSelect">Block Size:</label>
+            <select id="blockSizeSelect" disabled>
+                <option value="4,4" selected>4x4</option> <!-- Default selection -->
+                <option value="5,4">5x4</option>
+                <option value="5,5">5x5</option>
+                <option value="6,5">6x5</option>
+                <option value="6,6">6x6</option>
+                <option value="8,5">8x5</option>
+                <option value="8,6">8x6</option>
+                <option value="10,5">10x5</option>
+                <option value="10,6">10x6</option>
+                <option value="8,8">8x8</option>
+                <option value="10,8">10x8</option>
+                <option value="10,10">10x10</option>
+                <option value="12,10">12x10</option>
+                <option value="12,12">12x12</option>
+            </select>
+        </div>
+
+        <input type="file" id="imageInput" accept="image/png, image/jpeg" disabled>
+        <br>
+        <p id="status">WASM module loading...</p>
+    </div>
+
+
+    <script>
+        var Module = {
+            isReady: false,
+            print: (text) => { console.log(text); },
+            printErr: (text) => { console.error(text); },
+        };
+    </script>
+
+
+    {{{ SCRIPT }}}
+
+    <script>
+
+        const imageInput = document.getElementById('imageInput');
+        const statusElement = document.getElementById('status');
+        const blockSizeSelect = document.getElementById('blockSizeSelect');
+
+        // This function will be called from C++ when the WASM module is ready
+        window.onWasmReady = function () {
+            imageInput.disabled = false;
+            blockSizeSelect.disabled = false;
+            statusElement.textContent = 'Ready. Please select an image.';
+        };
+
+        window.onCompressionFinished = function (success) {
+            imageInput.value = null;
+
+            if (success) {
+                statusElement.textContent = 'Compression successful. Ready for another image.';
+            } else {
+                statusElement.textContent = 'An error occurred during compression.';
+            }
+        };
+
+        imageInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) {
+                return;
+            }
+
+            statusElement.textContent = 'Loading image...';
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const img = new Image();
+                img.onload = function () {
+                    statusElement.textContent = 'Image loaded. Starting compression...';
+
+                    // Use a canvas to get the raw RGBA pixel data
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    const imageData = ctx.getImageData(0, 0, img.width, img.height);
+                    const rgbaData = imageData.data;
+
+                    //get selected block size
+                    const selectedValue = blockSizeSelect.value;
+
+                    const parts = selectedValue.split(',');
+                    const blockX = parseInt(parts[0], 10);
+                    const blockY = parseInt(parts[1], 10);
+
+                    console.log(`Selected block size: ${blockX}x${blockY}`);
+
+                    // Allocate memory in the WASM module
+                    const dataPtr = Module._malloc(rgbaData.length);
+                    // Copy the image data to the WASM memory
+                    Module.HEAPU8.set(rgbaData, dataPtr);
+
+                    // Call the C++ function
+                    try {
+                        Module._process_image(dataPtr, rgbaData.length, img.width, img.height, blockX, blockY);
+                    } catch (e) {
+                        console.error("Error during C++ execution:", e);
+                        window.onCompressionFinished(false);
+                    } finally {
+
+                        Module._free(dataPtr);
+                    }
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    </script>
+</body>
+</html>

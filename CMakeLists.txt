@@ -7,34 +7,6 @@ project(
 
 option(DEV_MODE "Set up development helper settings" ON)
 
-if(EMSCRIPTEN)
-    message(STATUS "Configuring for WebAssembly with Emscripten")
-    set(CMAKE_EXECUTABLE_SUFFIX ".html")
-
-    set(EMSC_LINK_FLAGS
-        "-sUSE_WEBGPU=1"
-        "-sASYNCIFY=1"
-        "-sINITIAL_MEMORY=64MB"
-        "-sMAXIMUM_MEMORY=512MB"
-        "-sALLOW_MEMORY_GROWTH=1"
-        "-sDISABLE_EXCEPTION_CATCHING=0"
-        # "-sLLD_REPORT_UNDEFINED"
-
-        "--preload-file" "${CMAKE_CURRENT_SOURCE_DIR}/test_images/image1.jpg@image1.jpg"  # Preload image
-        "--preload-file" "${CMAKE_CURRENT_SOURCE_DIR}/test_images/image.jpg@image.jpg"  # Preload image
-        "--preload-file" "${CMAKE_CURRENT_SOURCE_DIR}/shaders@shaders"
-    )
-
-    # Add -s flags to the global linker flags
-    string(REPLACE ";" " " EMSC_LINK_FLAGS_STR "${EMSC_LINK_FLAGS}")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${EMSC_LINK_FLAGS_STR}")
-    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${EMSC_LINK_FLAGS_STR}") # If you have shared libs
-    set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} ${EMSC_LINK_FLAGS_STR}") # If you have modules
-
-else()
-    message(STATUS "Configuring for Native Build")
-endif()
-
 # === Source files in /code ===
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS code/*.cpp)
 
@@ -48,8 +20,29 @@ set_target_properties(webgpu_astc PROPERTIES
 )
 
 if(EMSCRIPTEN)
+
+    message(STATUS "Configuring for WebAssembly with Emscripten")
+    set(CMAKE_EXECUTABLE_SUFFIX ".html")
+
+    set(EMSC_LINK_FLAGS
+        "-sUSE_WEBGPU=1"
+        "-sASYNCIFY=1"
+        "-sINITIAL_MEMORY=64MB"
+        "-sMAXIMUM_MEMORY=2048MB"
+        "-sALLOW_MEMORY_GROWTH=1"
+        "-sDISABLE_EXCEPTION_CATCHING=0"
+        # "-sLLD_REPORT_UNDEFINED"
+
+        "--preload-file" "${CMAKE_CURRENT_SOURCE_DIR}/shaders@shaders"
+
+        "--shell-file" "${CMAKE_CURRENT_SOURCE_DIR}/shell_template.html"
+
+        "-sEXPORTED_FUNCTIONS=['_malloc','_free','_main']"
+        "-sEXPORTED_RUNTIME_METHODS=['ccall', 'cwrap', 'HEAPU8']"
+    )
+
     # Apply the link flags specifically to the target as well, this is often more robust
-    target_link_options(webgpu_astc PRIVATE ${EMSC_TARGET_LINK_FLAGS})
+    target_link_options(webgpu_astc PRIVATE ${EMSC_LINK_FLAGS})
 endif()
 
 if(DEV_MODE)

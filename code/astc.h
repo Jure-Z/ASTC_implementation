@@ -5,6 +5,8 @@
 #include <cstddef>
 #include <array>
 #include <assert.h>
+#include <atomic>
+#include <functional>
 
 #include <webgpu/webgpu.h>
 #include <webgpu/webgpu_cpp.h>
@@ -709,9 +711,12 @@ void symbolic_to_physical(
 
 class ASTCEncoder {
 public:
-	ASTCEncoder(wgpu::Device device, uint32_t textureWidth, uint32_t textureHeight, uint8_t blockXDim, uint8_t blockYDim);
+	ASTCEncoder(const wgpu::Device& device);
 
 	~ASTCEncoder();
+
+	void init();
+	void secondaryInit(uint32_t textureWidth, uint32_t textureHeight, uint8_t blockXDim, uint8_t blockYDim);
 
 	void encode(uint8_t* imageData, uint8_t* dataOut, size_t dataLen);
 
@@ -721,13 +726,26 @@ public:
 
 	const uint32_t batchSize = 512;
 
+#if defined(EMSCRIPTEN)
+	std::atomic<int> m_pending_pipelines;
+	void initAsync(std::function<void()> on_initialized);
+#endif
+
+	bool is_initialized = false;
+
 private:
+
 	void initMetadata();
 	void initTrialModes();
 	void initBindGroupLayouts();
 	void initBuffers();
 	void initPipelines();
 	void initBindGroups();
+	void releasePerImageResources();
+
+#if defined(EMSCRIPTEN)
+	void initPipelinesAsync(std::function<void()> on_all_pipelines_created);
+#endif
 
 	wgpu::Device device;
 	wgpu::Queue queue;

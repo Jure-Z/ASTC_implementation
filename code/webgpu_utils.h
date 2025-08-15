@@ -7,9 +7,25 @@
 #include <emscripten.h>
 #endif
 
-WGPUAdapter requestAdapterSync(WGPUInstance instance, WGPURequestAdapterOptions const* options);
+wgpu::Adapter requestAdapterSync(wgpu::Instance instance, wgpu::RequestAdapterOptions const* options);
 
-WGPUDevice requestDeviceSync(WGPUAdapter adapter, WGPUDeviceDescriptor const* descriptor);
+void requestAdapterAsync(
+    wgpu::Instance instance,
+    wgpu::RequestAdapterOptions const* options,
+    std::function<void(wgpu::Adapter)> callback
+);
+
+wgpu::Device requestDeviceSync(wgpu::Adapter adapter, wgpu::DeviceDescriptor const* descriptor);
+
+void requestDeviceAsync(
+    wgpu::Adapter adapter,
+    wgpu::DeviceDescriptor const* descriptor,
+    std::function<void(wgpu::Device)> callback
+);
+
+//WGPUAdapter requestAdapterSync(WGPUInstance instance, WGPURequestAdapterOptions const* options);
+
+//WGPUDevice requestDeviceSync(WGPUAdapter adapter, WGPUDeviceDescriptor const* descriptor);
 
 std::string LoadWGSL(const std::string& path);
 
