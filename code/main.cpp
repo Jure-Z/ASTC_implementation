@@ -119,7 +119,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE void process_image(uintptr_t data, size_t size, 
 }
 #endif
 
-
+#if !defined(EMSCRIPTEN)
 bool is_valid_astc_block_size(unsigned int block_x, unsigned int block_y) {
 	// Use a static const set for efficient, one-time initialization and fast lookups.
 	static const std::set<std::pair<unsigned int, unsigned int>> valid_sizes = {
@@ -130,6 +130,7 @@ bool is_valid_astc_block_size(unsigned int block_x, unsigned int block_y) {
 
 	return valid_sizes.count({ block_x, block_y }) > 0;
 }
+#endif
 
 
 int main(int argc, char** argv) {
