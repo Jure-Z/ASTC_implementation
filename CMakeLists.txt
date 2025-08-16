@@ -5,7 +5,7 @@ project(
     LANGUAGES CXX C
 )
 
-option(DEV_MODE "Set up development helper settings" ON)
+option(DEV_MODE "Set up development helper settings" OFF)
 
 # This function automates the process of embedding a file into a C++ header
 function(embed_file target_name input_file_absolute namespace var_name)
@@ -98,16 +98,6 @@ else()
 
     find_package(Python3 REQUIRED)
 
-endif()
-
-if(DEV_MODE)
-    target_compile_definitions(webgpu_astc PRIVATE
-        TEST_IMAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test_images"
-    )
-else()
-    target_compile_definitions(webgpu_astc PRIVATE
-        TEST_IMAGE_DIR="./test_images"
-    )
 endif()
 
 add_subdirectory(webgpu)

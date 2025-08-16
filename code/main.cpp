@@ -6,6 +6,11 @@
 #include <emscripten/bind.h>
 #endif
 
+#if !defined(EMSCRIPTEN)
+#include <set>
+#include <utility>
+#endif
+
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
@@ -13,6 +18,7 @@
 #include <cassert>
 #include <vector>
 #include <cstring>
+#include <string>
 
 #include "webgpu_utils.h"
 #include "astc.h"
@@ -113,7 +119,20 @@ extern "C" EMSCRIPTEN_KEEPALIVE void process_image(uintptr_t data, size_t size, 
 }
 #endif
 
-int main(int, char**) {
+
+bool is_valid_astc_block_size(unsigned int block_x, unsigned int block_y) {
+	// Use a static const set for efficient, one-time initialization and fast lookups.
+	static const std::set<std::pair<unsigned int, unsigned int>> valid_sizes = {
+		// The official list of 2D block sizes
+		{4, 4}, {5, 4}, {5, 5}, {6, 5}, {6, 6}, {8, 5}, {8, 6},
+		{10, 5}, {10, 6}, {8, 8}, {10, 8}, {10, 10}, {12, 10}, {12, 12}
+	};
+
+	return valid_sizes.count({ block_x, block_y }) > 0;
+}
+
+
+int main(int argc, char** argv) {
 
 #if defined(__EMSCRIPTEN__)
 
@@ -202,6 +221,38 @@ int main(int, char**) {
 
 #else
 
+	if (argc != 5) {
+		std::cerr << "Usage: " << argv[0] << " <input_image> <output_image.astc> <block_x> <block_y>" << std::endl;
+		std::cerr << "NOTE: If debugging in VS Code, set these arguments in the '.vscode/launch.json' file." << std::endl;
+		return 1;
+	}
+
+	// Parse arguments from argv, regardless of build type.
+	std::string inputImagePath = argv[1];
+	std::string outputImagePath = argv[2];
+	unsigned int blockXDim = 0;
+	unsigned int blockYDim = 0;
+	try {
+		blockXDim = std::stoi(argv[3]);
+		blockYDim = std::stoi(argv[4]);
+	}
+	catch (const std::exception& e) {
+		std::cerr << "Error: Invalid block dimensions. Please provide integers." << std::endl;
+		return 1;
+	}
+
+	if (!is_valid_astc_block_size(blockXDim, blockYDim)) {
+		std::cerr << "Error: Invalid block size " << blockXDim << "x" << blockYDim << "." << std::endl;
+		std::cerr << "Please use one of the 14 supported ASTC 2D block dimensions (e.g., 4x4, 8x8, 10x10)." << std::endl;
+		return 1;
+	}
+
+	std::cout << "--- ASTC Encoder Starting ---" << std::endl;
+	std::cout << "  Input: " << inputImagePath << std::endl;
+	std::cout << "  Output: " << outputImagePath << std::endl;
+	std::cout << "  Block Size: " << blockXDim << "x" << blockYDim << std::endl;
+	std::cout << "-----------------------------" << std::endl;
+
 	std::cerr << "Preparing webgpu adapter..." << std::endl;
 
 	InstanceDescriptor desc = {};
@@ -267,10 +318,7 @@ int main(int, char**) {
 		};
 	device.SetUncapturedErrorCallback(onDeviceError, nullptr /* pUserData */);
 
-    ImageData image = LoadImageRGBA(TEST_IMAGE_DIR "/image.jpeg");
-
-	unsigned int blockXDim = 10;
-	unsigned int blockYDim = 10;
+    ImageData image = LoadImageRGBA(inputImagePath);
 
 	if (encoder) {
 		delete encoder;
@@ -288,7 +336,7 @@ int main(int, char**) {
 
 	encoder->encode(image.pixels, dataOut, dataLen);
 
-	store_image(blockXDim, blockYDim, image.width, image.height, dataOut, dataLen, TEST_IMAGE_DIR "/imageOut.astc");
+	store_image(blockXDim, blockYDim, image.width, image.height, dataOut, dataLen, outputImagePath);
 
 	FreeImage(image);
 #endif
