@@ -31,6 +31,15 @@ std::string LoadWGSL(const std::string& path);
 
 wgpu::ShaderModule prepareShaderModule(wgpu::Device device, std::string filePath, const char* label);
 
+#if !defined(EMSCRIPTEN)
+wgpu::ShaderModule prepareShaderModule(
+    wgpu::Device device,
+    const unsigned char* shaderData,
+    size_t shaderDataLen,
+    const char* label
+);
+#endif
+
 template <typename T>
 void mapOutputBufferSync(wgpu::Device device, wgpu::Buffer buffer, uint64_t blockCount, std::vector<T>& output) {
 

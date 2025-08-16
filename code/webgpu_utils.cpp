@@ -269,3 +269,31 @@ wgpu::ShaderModule prepareShaderModule(wgpu::Device device, std::string filePath
 
 	return shaderModule;
 }
+
+//specialized function for native build. Uses embedded shaders
+#if !defined(EMSCRIPTEN)
+wgpu::ShaderModule prepareShaderModule(
+	wgpu::Device device,
+	const unsigned char* shaderData,
+	size_t shaderDataLen,
+	const char* label
+) {
+	if (!shaderData || shaderDataLen == 0) {
+		std::cerr << "Embedded shader source is empty for " << label << ". Cannot create module." << std::endl;
+		return nullptr;
+	}
+
+	wgpu::ShaderModuleWGSLDescriptor wgslDesc = {};
+	// The WebGPU API expects a const char*, so we reinterpret_cast the pointer.
+	// This is safe because the underlying data is text.
+	wgslDesc.code = reinterpret_cast<const char*>(shaderData);
+	wgslDesc.nextInChain = nullptr;
+	wgslDesc.sType = wgpu::SType::ShaderSourceWGSL;
+
+	wgpu::ShaderModuleDescriptor shaderDesc = {};
+	shaderDesc.label = label;
+	shaderDesc.nextInChain = &wgslDesc;
+
+	return device.CreateShaderModule(&shaderDesc);
+}
+#endif

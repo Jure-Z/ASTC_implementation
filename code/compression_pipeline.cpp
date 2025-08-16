@@ -464,7 +464,6 @@ void ASTCEncoder::encode(uint8_t* imageData, uint8_t* dataOut, size_t dataLen) {
         int offset = i * 16;
         uint8_t* outputBlock = dataOut + offset;
         symbolic_to_physical(block_descriptor, best_symbolic_blocks[i], outputBlock);
-        std::cout << "Block: " << best_symbolic_blocks[i].errorval << std::endl;
     }
 
     std::cout << "Encoding complete." << std::endl;
