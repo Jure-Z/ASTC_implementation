@@ -53,25 +53,15 @@ struct TexelToWeightMap {
     _padding2 : u32,
 };
 
-struct Pixel {
-    data: vec4<f32>,
-    partitionNum: u32,
-
-    _padding1: u32,
-    _padding2: u32,
-    _padding3: u32,
-};
-
 struct InputBlock {
-    pixels: array<Pixel, BLOCK_MAX_TEXELS>,
+    pixels: array<vec4<f32>, BLOCK_MAX_TEXELS>,
+    texel_partitions: array<u32, BLOCK_MAX_TEXELS>,
     partition_pixel_counts: array<u32, 4>,
-    data_min: vec4<f32>,
-    data_max: vec4<f32>,
 
-    grayscale: u32,
     partitioning_idx: u32,
-    xpos: u32,
-    ypos: u32,
+    grayscale: u32,
+    constant_alpha: u32,
+    padding: u32,
 };
 
 struct BlockMode {
@@ -259,10 +249,9 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
     
     // Acumulate multiple properties per-partition
     for (var i = local_idx; i < di.texel_count; i += WORKGROUP_SIZE) {
-        let pixel = input_block.pixels[i];
 
-        let p = pixel.partitionNum;
-        let rgba = pixel.data;
+        let p = input_block.texel_partitions[i];
+        let rgba = input_block.pixels[i];
         let weight = undec_weights[i];
 
         atomicMin_f32(&wmin1[p], weight);

@@ -119,7 +119,7 @@ struct QuantizationResult {
     _padding1: u32,
     _padding2: u32,
 
-    quantized_weights: array<u32, BLOCK_MAX_WEIGHTS>,
+    quantized_weights: array<u32, (BLOCK_MAX_WEIGHTS/4)>,
 };
 
 struct CombinedEndpointFormats {

@@ -1657,3 +1657,25 @@ void ASTCEncoder::releasePerImageResources() {
     if (pass18_output_symbolicBlocks) pass18_output_symbolicBlocks.Destroy();
     if (outputReadbackBuffer) outputReadbackBuffer.Destroy();
 }
+
+void ASTCEncoder::printBufferSizes() {
+    std::cout << "Input_blocks_buffer: " << (float)(inputBlocksBuffer.GetSize()) / 1000000 << std::endl;
+	std::cout << "Pass1_output_idealEndpointsAndWeights: " << (float)(pass1_output_idealEndpointsAndWeights.GetSize()) / 1000000 << std::endl;
+	std::cout << "Pass2_output_decimatedWeights: " << (float)(pass2_output_decimatedWeights.GetSize()) / 1000000 << std::endl;
+	std::cout << "Pass3_output_angular_offsets: " << (float)(pass3_output_angular_offsets.GetSize()) / 1000000 << std::endl;
+	std::cout << "Pass4_output_lowestAndHighestWeight: " << (float)(pass4_output_lowestAndHighestWeight.GetSize()) / 1000000 << std::endl;
+	std::cout << "Pass5_output_lowValues: " << (float)(pass5_output_lowValues.GetSize()) / 1000000 << std::endl;
+	std::cout << "Pass5_output_highValues: " << (float)(pass5_output_highValues.GetSize()) / 1000000 << std::endl;
+	std::cout << "Pass6_output_finalValueRanges: " << (float)(pass6_output_finalValueRanges.GetSize()) / 1000000 << std::endl;
+	std::cout << "Pass7_output_quantizationResults: " << (float)(pass7_output_quantizationResults.GetSize()) / 1000000 << std::endl;
+	std::cout << "Pass8_output_encodingChoiceErrors: " << (float)(pass8_output_encodingChoiceErrors.GetSize()) / 1000000 << std::endl;
+	std::cout << "Pass9_output_colorFormatErrors: " << (float)(pass9_output_colorFormatErrors.GetSize()) / 1000000 << std::endl;
+	std::cout << "Pass9_output_colorFormats: " << (float)(pass9_output_colorFormats.GetSize()) / 1000000 << std::endl;
+	std::cout << "Pass10_output_colorEndpointCombinations: " << (float)(pass10_output_colorEndpointCombinations.GetSize()) / 1000000 << std::endl;
+	std::cout << "Pass11_output_bestEndpointCombinationsForMode: " << (float)(pass11_output_bestEndpointCombinationsForMode.GetSize()) / 1000000 << std::endl;
+	std::cout << "Pass12_output_finalCandidates: " << (float)(pass12_output_finalCandidates.GetSize()) / 1000000 << std::endl;
+	std::cout << "Pass12_output_topCandidates: " << (float)(pass12_output_topCandidates.GetSize()) / 1000000 << std::endl;
+	std::cout << "Pass13_output_rgbsVectors: " << (float)(pass13_output_rgbsVectors.GetSize()) / 1000000 << std::endl;
+	std::cout << "Pass15_output_unpackedEndpoints: " << (float)(pass15_output_unpackedEndpoints.GetSize()) / 1000000 << std::endl;
+	std::cout << "Pass18_output_symbolicBlocks: " << (float)(pass18_output_symbolicBlocks.GetSize()) / 1000000 << std::endl;
+}

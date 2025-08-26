@@ -39,14 +39,14 @@ void kmeans_init(
 
 	std::array<float, 4> center_color;
 	for (int i = 0; i < 4; ++i) {
-		center_color[i] = blk.pixels[sample_index].data[i];
+		center_color[i] = blk.pixels[sample_index][i];
 	}
 	cluster_centers.push_back(center_color);
 
 	// Compute the distance to the first cluster center
 	float distance_sum = 0.0f;
 	for (unsigned int i = 0; i < texel_count; ++i) {
-		float distance = dot_product_squared_difference(blk.pixels[i].data, center_color.data(), channel_weights);
+		float distance = dot_product_squared_difference(blk.pixels[i], center_color.data(), channel_weights);
 		distance_sum += distance;
 		distances[i] = distance;
 	}
@@ -78,7 +78,7 @@ void kmeans_init(
 		next_sample_index = std::min(next_sample_index, texel_count - 1);
 
 		for (int i = 0; i < 4; ++i) {
-			center_color[i] = blk.pixels[next_sample_index].data[i];
+			center_color[i] = blk.pixels[next_sample_index][i];
 		}
 		cluster_centers.push_back(center_color);
 
@@ -89,7 +89,7 @@ void kmeans_init(
 		// Compute the distance to the new cluster center, keeping the min distance
 		distance_sum = 0.0f;
 		for (unsigned int i = 0; i < texel_count; ++i) {
-			float distance = dot_product_squared_difference(blk.pixels[i].data, center_color.data(), channel_weights);
+			float distance = dot_product_squared_difference(blk.pixels[i], center_color.data(), channel_weights);
 			distances[i] = std::min(distance, distances[i]);
 			distance_sum += distances[i];
 		}
@@ -114,7 +114,7 @@ void kmeans_assign(
 		// For each texel, check its distance to every cluster center
 		for (unsigned int j = 0; j < partition_count; ++j) {
 			float distance = dot_product_squared_difference(
-				blk.pixels[i].data,
+				blk.pixels[i],
 				cluster_centers[j].data(),
 				channel_weights
 			);
@@ -165,7 +165,7 @@ static void kmeans_update(
 
 		// Add the texel's color to the appropriate sum, component by component.
 		for (int c = 0; c < 4; ++c) {
-			color_sum[partition][c] += blk.pixels[i].data[c];
+			color_sum[partition][c] += blk.pixels[i][c];
 		}
 
 		partition_texel_count[partition]++;
@@ -525,7 +525,7 @@ unsigned int find_best_partition_candidates(
 	partition_search_limit = std::min(partition_search_limit, sequence_len);
 	requested_candidates = std::min(partition_search_limit, requested_candidates);
 
-	bool uses_alpha = blk.data_max[3] != blk.data_min[3];
+	bool uses_alpha = blk.constant_alpha == 0;
 
 	// Partitioning errors assuming uncorrelated-chrominance endpoints
 	float uncor_best_errors[TUNE_MAX_PARTITIONING_CANDIDATES];

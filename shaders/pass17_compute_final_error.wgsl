@@ -66,25 +66,15 @@ struct TexelToWeightMap {
     _padding2 : u32,
 };
 
-struct Pixel {
-    data: vec4<f32>,
-    partitionNum: u32,
-
-    _padding1: u32,
-    _padding2: u32,
-    _padding3: u32,
-};
-
 struct InputBlock {
-    pixels: array<Pixel, BLOCK_MAX_TEXELS>,
+    pixels: array<vec4<f32>, BLOCK_MAX_TEXELS>,
+    texel_partitions: array<u32, BLOCK_MAX_TEXELS>,
     partition_pixel_counts: array<u32, 4>,
-    data_min: vec4<f32>,
-    data_max: vec4<f32>,
 
-    grayscale: u32,
     partitioning_idx: u32,
-    xpos: u32,
-    ypos: u32,
+    grayscale: u32,
+    constant_alpha: u32,
+    padding: u32,
 };
 
 struct IdealEndpointsAndWeightsPartition {
@@ -199,7 +189,7 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
 
     //sum error for all texels
     for (var i = local_idx; i < di.texel_count; i += WORKGROUP_SIZE) {
-        let p = input_block.pixels[i].partitionNum;
+        let p = input_block.texel_partitions[i];
         if (p < partition_count) {
 
             let endpoint0 = unpacked_endpoints[candidate_idx].endpoint0[p];
@@ -213,7 +203,7 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
             var color = (endpoint0 * weight0) + (endpoint1 * weight1) + vec4<i32>(32);
             color = color >> vec4<u32>(6);
 
-            var diff = input_block.pixels[i].data - vec4<f32>(color);
+            var diff = input_block.pixels[i] - vec4<f32>(color);
             diff = min(abs(diff), vec4<f32>(1e15f));
             
             let error = dot(diff * diff, uniforms.channel_weights);

@@ -139,7 +139,7 @@ struct QuantizationResult {
     _padding1: u32,
     _padding2: u32,
 
-    quantized_weights: array<u32, BLOCK_MAX_WEIGHTS>,
+    quantized_weights: array<u32, (BLOCK_MAX_WEIGHTS/4)>,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: UniformVariables;
@@ -316,8 +316,14 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
     }
 
     // All threads help copy the final integer weights to global memory.
-    for (var i = local_idx; i < num_weights; i += WORKGROUP_SIZE) {
+    for (var i = local_idx; i < num_weights/4; i += WORKGROUP_SIZE) {
         let result_ptr = &output_quantization_results[block_mode_trial_index];
-        (*result_ptr).quantized_weights[i] = shared_quantized_weights_int[i];
+        let packed = pack4xU8(vec4<u32>(
+			shared_quantized_weights_int[i * 4 + 0],
+			shared_quantized_weights_int[i * 4 + 1],
+			shared_quantized_weights_int[i * 4 + 2],
+			shared_quantized_weights_int[i * 4 + 3]
+		));
+        (*result_ptr).quantized_weights[i] = packed;
     }
 }

@@ -33,7 +33,7 @@ static void compute_partition_averages_rgba(
 		int partition = pi.partition_of_texel[i];
 		
 		for (int c = 0; c < 4; c++) {
-			sum[partition][c] += blk.pixels[i].data[c];
+			sum[partition][c] += blk.pixels[i][c];
 		}
 	}
 
@@ -76,7 +76,7 @@ void compute_avgs_and_dirs_4_comp(
 			unsigned int iwt = texel_indexes[i];
 			float texel_datum[4];
 			for (int c = 0; c < 4; c++) {
-				texel_datum[c] = blk.pixels[iwt].data[c] - partition_averages[partition][c];
+				texel_datum[c] = blk.pixels[iwt][c] - partition_averages[partition][c];
 			}
 
 			if (texel_datum[0] > 0) {
@@ -149,7 +149,7 @@ void compute_avgs_and_dirs_3_comp_rgb(
 			unsigned int iwt = texel_indexes[i];
 			float texel_datum[4];
 			for (int c = 0; c < 4; c++) {
-				texel_datum[c] = blk.pixels[iwt].data[c] - partition_averages[partition][c];
+				texel_datum[c] = blk.pixels[iwt][c] - partition_averages[partition][c];
 			}
 
 			if (texel_datum[0] > 0) {
@@ -216,17 +216,17 @@ void compute_error_squared_rgba(
 
 		for (size_t i = 0; i < texel_count; i++)
 		{
-			Pixel px = blk.pixels[texel_indexes[i]];
+			const float* pixel = blk.pixels[texel_indexes[i]];
 
-			float uncor_param = px.data[0] * l_uncor.bs[0] + px.data[1] * l_uncor.bs[1] + px.data[2] * l_uncor.bs[2] + px.data[3] * l_uncor.bs[3];
+			float uncor_param = pixel[0] * l_uncor.bs[0] + pixel[1] * l_uncor.bs[1] + pixel[2] * l_uncor.bs[2] + pixel[3] * l_uncor.bs[3];
 
 			uncor_loparam = std::min(uncor_loparam, uncor_param);
 			uncor_hiparam = std::max(uncor_hiparam, uncor_param);
 
-			float uncor_dist0 = (l_uncor.amod[0] - px.data[0]) + (uncor_param * l_uncor.bs[0]);
-			float uncor_dist1 = (l_uncor.amod[1] - px.data[1]) + (uncor_param * l_uncor.bs[1]);
-			float uncor_dist2 = (l_uncor.amod[2] - px.data[2]) + (uncor_param * l_uncor.bs[2]);
-			float uncor_dist3 = (l_uncor.amod[3] - px.data[3]) + (uncor_param * l_uncor.bs[3]);
+			float uncor_dist0 = (l_uncor.amod[0] - pixel[0]) + (uncor_param * l_uncor.bs[0]);
+			float uncor_dist1 = (l_uncor.amod[1] - pixel[1]) + (uncor_param * l_uncor.bs[1]);
+			float uncor_dist2 = (l_uncor.amod[2] - pixel[2]) + (uncor_param * l_uncor.bs[2]);
+			float uncor_dist3 = (l_uncor.amod[3] - pixel[3]) + (uncor_param * l_uncor.bs[3]);
 
 			float uncor_err = (error_weights[0] * uncor_dist0 * uncor_dist0)
 				+ (error_weights[1] * uncor_dist1 * uncor_dist1)
@@ -235,12 +235,12 @@ void compute_error_squared_rgba(
 
 			uncor_errorsum += uncor_err;
 
-			float samec_param = px.data[0] * l_samec.bs[0] + px.data[1] * l_samec.bs[1] + px.data[2] * l_samec.bs[2] + px.data[3] * l_samec.bs[3];
+			float samec_param = pixel[0] * l_samec.bs[0] + pixel[1] * l_samec.bs[1] + pixel[2] * l_samec.bs[2] + pixel[3] * l_samec.bs[3];
 
-			float samec_dist0 = samec_param * l_samec.bs[0] - px.data[0];
-			float samec_dist1 = samec_param * l_samec.bs[1] - px.data[1];
-			float samec_dist2 = samec_param * l_samec.bs[2] - px.data[2];
-			float samec_dist3 = samec_param * l_samec.bs[3] - px.data[3];
+			float samec_dist0 = samec_param * l_samec.bs[0] - pixel[0];
+			float samec_dist1 = samec_param * l_samec.bs[1] - pixel[1];
+			float samec_dist2 = samec_param * l_samec.bs[2] - pixel[2];
+			float samec_dist3 = samec_param * l_samec.bs[3] - pixel[3];
 
 			float samec_err = (error_weights[0] * samec_dist0 * samec_dist0)
 				+ (error_weights[1] * samec_dist1 * samec_dist1)
@@ -286,16 +286,16 @@ void compute_error_squared_rgb(
 
 		for (size_t i = 0; i < texel_count; i++)
 		{
-			Pixel px = blk.pixels[texel_indexes[i]];
+			const float* pixel = blk.pixels[texel_indexes[i]];
 
-			float uncor_param = px.data[0] * l_uncor.bs[0] + px.data[1] * l_uncor.bs[1] + px.data[2] * l_uncor.bs[2];
+			float uncor_param = pixel[0] * l_uncor.bs[0] + pixel[1] * l_uncor.bs[1] + pixel[2] * l_uncor.bs[2];
 
 			uncor_loparam = std::min(uncor_loparam, uncor_param);
 			uncor_hiparam = std::max(uncor_hiparam, uncor_param);
 
-			float uncor_dist0 = (l_uncor.amod[0] - px.data[0]) + (uncor_param * l_uncor.bs[0]);
-			float uncor_dist1 = (l_uncor.amod[1] - px.data[1]) + (uncor_param * l_uncor.bs[1]);
-			float uncor_dist2 = (l_uncor.amod[2] - px.data[2]) + (uncor_param * l_uncor.bs[2]);
+			float uncor_dist0 = (l_uncor.amod[0] - pixel[0]) + (uncor_param * l_uncor.bs[0]);
+			float uncor_dist1 = (l_uncor.amod[1] - pixel[1]) + (uncor_param * l_uncor.bs[1]);
+			float uncor_dist2 = (l_uncor.amod[2] - pixel[2]) + (uncor_param * l_uncor.bs[2]);
 
 			float uncor_err = (error_weights[0] * uncor_dist0 * uncor_dist0)
 				+ (error_weights[1] * uncor_dist1 * uncor_dist1)
@@ -304,11 +304,11 @@ void compute_error_squared_rgb(
 			uncor_errorsum += uncor_err;
 
 
-			float samec_param = px.data[0] * l_samec.bs[0] + px.data[1] * l_samec.bs[1] + px.data[2] * l_samec.bs[2];
+			float samec_param = pixel[0] * l_samec.bs[0] + pixel[1] * l_samec.bs[1] + pixel[2] * l_samec.bs[2];
 
-			float samec_dist0 = samec_param * l_samec.bs[0] - px.data[0];
-			float samec_dist1 = samec_param * l_samec.bs[1] - px.data[1];
-			float samec_dist2 = samec_param * l_samec.bs[2] - px.data[2];
+			float samec_dist0 = samec_param * l_samec.bs[0] - pixel[0];
+			float samec_dist1 = samec_param * l_samec.bs[1] - pixel[1];
+			float samec_dist2 = samec_param * l_samec.bs[2] - pixel[2];
 
 			float samec_err = (error_weights[0] * samec_dist0 * samec_dist0)
 				+ (error_weights[1] * samec_dist1 * samec_dist1)

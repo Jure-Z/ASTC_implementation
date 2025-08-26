@@ -141,25 +141,15 @@ struct WeightToTexelMap {
     _padding2 : u32,
 };
 
-struct Pixel {
-    data: vec4<f32>,
-    partitionNum: u32,
-
-    _padding1: u32,
-    _padding2: u32,
-    _padding3: u32,
-};
-
 struct InputBlock {
-    pixels: array<Pixel, BLOCK_MAX_TEXELS>,
+    pixels: array<vec4<f32>, BLOCK_MAX_TEXELS>,
+    texel_partitions: array<u32, BLOCK_MAX_TEXELS>,
     partition_pixel_counts: array<u32, 4>,
-    data_min: vec4<f32>,
-    data_max: vec4<f32>,
 
-    grayscale: u32,
     partitioning_idx: u32,
-    xpos: u32,
-    ypos: u32,
+    grayscale: u32,
+    constant_alpha: u32,
+    padding: u32,
 };
 
 struct IdealEndpointsAndWeightsPartition {
@@ -267,12 +257,12 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
             let weight_down_diff = f32(uqw_down - uqw);
             let weight_up_diff = f32(uqw_up - uqw);
 
-            let p = input_block.pixels[texel_idx].partitionNum;
+            let p = input_block.texel_partitions[texel_idx];
             let color_offset = part_offsets[p];
             let color_base = part_bases[p];
             
             let color = color_base + color_offset * weight_base;
-            let orig_color = input_block.pixels[texel_idx].data;
+            let orig_color = input_block.pixels[texel_idx];
             let error_weight = uniforms.channel_weights;
 
             let color_diff = color - orig_color;
@@ -339,12 +329,12 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
                 let weight_down_diff = uqw_diff_down * tw_base;
                 let weight_up_diff = uqw_diff_up * tw_base;
 
-                let p = input_block.pixels[texel_idx].partitionNum;
+                let p = input_block.texel_partitions[texel_idx];
                 let color_offset = part_offsets[p];
                 let color_base = part_bases[p];
 
                 let color = color_base + color_offset * weight_base;
-                let orig_color = input_block.pixels[texel_idx].data;
+                let orig_color = input_block.pixels[texel_idx];
 
                 let color_diff = color - orig_color;
                 let color_diff_down = color_diff + color_offset * weight_down_diff;

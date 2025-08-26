@@ -62,7 +62,7 @@ struct QuantizationResult {
     _padding1: u32,
     _padding2: u32,
 
-    quantized_weights: array<u32, BLOCK_MAX_WEIGHTS>,
+    quantized_weights: array<u32, (BLOCK_MAX_WEIGHTS/4)>,
 };
 
 struct ColorCombinationResult {
@@ -167,8 +167,15 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
 			(*out_ptr).quant_level_mod = winning_candidate.best_quant_level_mod;
 			(*out_ptr).formats = winning_candidate.best_ep_formats;
 
-            (*out_ptr).quantized_weights = quantization_results[bm_trial_idx].quantized_weights;
             (*out_ptr).candidate_partitions = ideal_endpoints_and_weights[block_idx].partitions;
+
+            for(var i = 0u; i < BLOCK_MAX_WEIGHTS/4; i += 1u) {
+				let unpacked = unpack4xU8(quantization_results[bm_trial_idx].quantized_weights[i]);
+                (*out_ptr).quantized_weights[i * 4u + 0u] = unpacked.x;
+                (*out_ptr).quantized_weights[i * 4u + 1u] = unpacked.y;
+				(*out_ptr).quantized_weights[i * 4u + 2u] = unpacked.z;
+				(*out_ptr).quantized_weights[i * 4u + 3u] = unpacked.w;
+            }
 
 
         }

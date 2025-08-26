@@ -21,13 +21,8 @@ std::vector<InputBlock> SplitImageIntoBlocks(
         for (int bx = 0; bx < blocksX; ++bx) {
             InputBlock block = {};
 
-            block.ypos = by;
-            block.xpos = bx;
-
-            for (int c = 0; c < 4; c++) {
-                block.data_min[c] = 1e38f;
-                block.data_max[c] = -1e38f;
-            }
+            float alpha_min = 1e38f;
+            float alpha_max = 0;
 
             bool grayscale = true;
 
@@ -48,20 +43,17 @@ std::vector<InputBlock> SplitImageIntoBlocks(
                     for (int c = 0; c < 4; c++) {
                         float channel_value = (imageData[idx + c] / 255.0f) * 65536.0f;
 
-                        block.pixels[pixelIndex].data[c] = channel_value;
-
-                        if (channel_value > block.data_max[c]) {
-                            block.data_max[c] = channel_value;
-                        }
-
-                        if (channel_value < block.data_min[c]) {
-                            block.data_min[c] = channel_value;
+                        block.pixels[pixelIndex][c] = channel_value;
+						
+                        if (c == 3) {
+							alpha_max = std::max(alpha_max, channel_value);
+							alpha_min = std::min(alpha_min, channel_value);
                         }
                     }
 
-                    grayscale = grayscale && (block.pixels[pixelIndex].data[0] == block.pixels[pixelIndex].data[1] && block.pixels[pixelIndex].data[0] == block.pixels[pixelIndex].data[2]);
+                    grayscale = grayscale && (block.pixels[pixelIndex][0] == block.pixels[pixelIndex][1] && block.pixels[pixelIndex][0] == block.pixels[pixelIndex][2]);
 
-                    block.pixels[pixelIndex].partition = 0;
+					block.texel_partitions[pixelIndex] = 0;
 
                     ++pixelIndex;
                 }
@@ -72,6 +64,13 @@ std::vector<InputBlock> SplitImageIntoBlocks(
             }
             else {
                 block.grayscale = 0;
+            }
+
+            if (alpha_max == alpha_min) {
+				block.constant_alpha = 1;
+            }
+            else {
+				block.constant_alpha = 0;
             }
 
 			block.partition_pixel_counts[0] = blockWidth * blockHeight;
@@ -120,7 +119,7 @@ static int generateBlockPartitionings(
             auto& pi = block_descriptor.get_partition_info(partition_count, partition_indices[j]);
 
             for (int tex = 0; tex < texel_count; tex++) {
-                partitionedBlock.pixels[tex].partition = pi.partition_of_texel[tex];
+				partitionedBlock.texel_partitions[tex] = pi.partition_of_texel[tex];
             }
 
             partitionedBlock.partitioning_idx = pi.partition_index;
@@ -273,6 +272,16 @@ void ASTCEncoder::secondaryInit(uint32_t textureWidth, uint32_t textureHeight, u
     this->blockXDim = blockXDim;
     this->blockYDim = blockYDim;
 
+	float texels = static_cast<float>(blockXDim * blockYDim);
+    float ltexels = logf(texels) / logf(10.0f);
+
+	this->tune_error_limit = 80 - 19 * ltexels;
+    std::cout << "error limit: " << this->tune_error_limit << std::endl;
+
+    this->tune_error_limit = pow(0.1f, this->tune_error_limit * 0.1f) * 65535.0f * 65535.0f;
+    std::cout << "error limit: " << this->tune_error_limit << std::endl;
+
+
     std::cout << "Precomputing compression data..." << std::endl;
     initMetadata();
     initTrialModes();
@@ -281,6 +290,8 @@ void ASTCEncoder::secondaryInit(uint32_t textureWidth, uint32_t textureHeight, u
     initBuffers();
     std::cout << "Initializing bind groups..." << std::endl;
     initBindGroups();
+
+    printBufferSizes();
 
     //write the precomputed metadata to the buffers
     //write to block mode and decimation mode buffers
@@ -301,6 +312,14 @@ void ASTCEncoder::secondaryInit(uint32_t textureWidth, uint32_t textureHeight, u
 }
 
 void ASTCEncoder::encode(uint8_t* imageData, uint8_t* dataOut, size_t dataLen) {
+
+    float weights_sum = block_descriptor.uniform_variables.channel_weights[0] +
+        block_descriptor.uniform_variables.channel_weights[1] +
+        block_descriptor.uniform_variables.channel_weights[2] +
+        block_descriptor.uniform_variables.channel_weights[3];
+
+    this->tune_error_limit = this->tune_error_limit * block_descriptor.uniform_variables.texel_count * weights_sum;
+    std::cout << "error limit: " << this->tune_error_limit << std::endl;
 
     std::cout << "Total blocks to compress: " << numBlocks << std::endl;
 
@@ -341,11 +360,13 @@ void ASTCEncoder::encode(uint8_t* imageData, uint8_t* dataOut, size_t dataLen) {
                 for (uint32_t i = 0; i < current_batch_size; ++i) block_offsets[i] = i;
             }
             else {
-                unsigned int search_limit = 200;
+                unsigned int search_limit = 100;
                 unsigned int candidates = TUNE_MAX_PARTITIONING_CANDIDATES;
+                std::cout << "Partitioning..." << std::endl;
                 current_partitioned_blocks_num = generateBlockPartitionings(
                     block_descriptor, batch_original_blocks, p_count, search_limit, candidates,
                     current_blocks, block_offsets);
+                std::cout << "done" << std::endl;
             }
 
             if (current_partitioned_blocks_num == 0) {

@@ -25,25 +25,15 @@ struct UniformVariables {
     channel_weights : vec4<f32>,
 };
 
-struct Pixel {
-    data: vec4<f32>,
-    partitionNum: u32,
-
-    _padding1: u32,
-    _padding2: u32,
-    _padding3: u32,
-};
-
 struct InputBlock {
-    pixels: array<Pixel, BLOCK_MAX_TEXELS>,
+    pixels: array<vec4<f32>, BLOCK_MAX_TEXELS>,
+    texel_partitions: array<u32, BLOCK_MAX_TEXELS>,
     partition_pixel_counts: array<u32, 4>,
-    data_min: vec4<f32>,
-    data_max: vec4<f32>,
 
-    grayscale: u32,
     partitioning_idx: u32,
-    xpos: u32,
-    ypos: u32,
+    grayscale: u32,
+    constant_alpha: u32,
+    padding: u32,
 };
 
 struct IdealEndpointsAndWeightsPartition {
@@ -140,12 +130,11 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
 
     // Calculate averages and directions for all partitions simultaneously
     for(var i = local_idx; i < uniforms.texel_count; i += WORKGROUP_SIZE) {
-		let pixel = input_block.pixels[i];
-		let p = pixel.partitionNum;
+        let p = input_block.texel_partitions[i];
 
 		if (p < partitionCount) {
 			let average = ideal_endpoints_and_weights_block.partitions[p].avg;
-            var texel_datum = pixel.data - average;
+            var texel_datum = input_block.pixels[i] - average;
             texel_datum.w = 0.0; // Ignore alpha channel for direction calculation
 
             if(texel_datum.x > 0.0) {
@@ -253,16 +242,15 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
     workgroupBarrier();
 
     for(var i = local_idx; i < uniforms.texel_count; i += WORKGROUP_SIZE) {
-        let pixel = input_block.pixels[i];
-        let p = pixel.partitionNum;
+        let p = input_block.texel_partitions[i];
 
         if(p < partitionCount) {
 
             let cw = uniforms.channel_weights;
-            let rgb_data = pixel.data.xyz;
+            let rgb_data = input_block.pixels[i].xyz;
 
             //Alpha drop error
-            let alpha_diff = pixel.data.w - DEFAULT_ALPHA;
+            let alpha_diff = input_block.pixels[i].a - DEFAULT_ALPHA;
             let a_drop_error = alpha_diff * alpha_diff * cw.w;
             atomicAdd_f32(&error_accumulators[p * 5u + 0u], a_drop_error);
 
@@ -316,7 +304,7 @@ fn main(@builtin(workgroup_id) group_id: vec3<u32>, @builtin(local_invocation_in
         let can_offset_encode = select(0u, 1u, ep_can_offset.x && ep_can_offset.y && ep_can_offset.z);
 
         var can_blue_contract = 1u; //0 if block is grayscale with constant alpha, 1 otherwise
-        if(input_block.grayscale == 1u && input_block.data_min.a == DEFAULT_ALPHA && input_block.data_max.a == DEFAULT_ALPHA) {
+        if(input_block.grayscale == 1u && input_block.constant_alpha == 1u) {
             can_blue_contract = 0u;
         }
 

@@ -22,25 +22,15 @@ struct UniformVariables {
     channel_weights : vec4<f32>,
 };
 
-struct Pixel {
-    data: vec4<f32>,
-    partitionNum: u32,
-
-    _padding1: u32,
-    _padding2: u32,
-    _padding3: u32,
-};
-
 struct InputBlock {
-    pixels: array<Pixel, BLOCK_MAX_TEXELS>,
+    pixels: array<vec4<f32>, BLOCK_MAX_TEXELS>,
+    texel_partitions: array<u32, BLOCK_MAX_TEXELS>,
     partition_pixel_counts: array<u32, 4>,
-    data_min: vec4<f32>,
-    data_max: vec4<f32>,
 
-    grayscale: u32,
     partitioning_idx: u32,
-    xpos: u32,
-    ypos: u32,
+    grayscale: u32,
+    constant_alpha: u32,
+    padding: u32,
 };
 
 struct IdealEndpointsAndWeightsPartition {
@@ -88,9 +78,9 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
     }
 
     for (var i = 0u; i < texelCount; i = i + 1u) {
-        let p = inputBlock.pixels[i].partitionNum;
+        let p = inputBlock.texel_partitions[i];
         if (p < 4u) {
-            sum[p] += inputBlock.pixels[i].data;
+            sum[p] += inputBlock.pixels[i];
             count[p] += 1.0;
         }
     }
@@ -117,10 +107,9 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
     }
 
     for (var i = 0u; i < texelCount; i = i + 1u) {
-        let pix = inputBlock.pixels[i];
-        let p = pix.partitionNum;
+        let p = inputBlock.texel_partitions[i];
         if (p < 4u) {
-            let diff = pix.data - avg[p];
+            let diff = inputBlock.pixels[i] - avg[p];
             let pd = max(diff, vec4<f32>(0.0));
             direction[p] += pd * pd;
         }
@@ -136,10 +125,9 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
 
     //find ideal endpoints
     for (var i = 0u; i < texelCount; i = i + 1u) {
-        let pix = inputBlock.pixels[i];
-        let p = pix.partitionNum;
+        let p = inputBlock.texel_partitions[i];
         if (p < 4u) {
-            let proj = dot(pix.data - avg[p], direction[p]);
+            let proj = dot(inputBlock.pixels[i] - avg[p], direction[p]);
             minProj[p] = min(minProj[p], proj);
             maxProj[p] = max(maxProj[p], proj);
         }
@@ -182,11 +170,10 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
 
     //assign weights
     for (var i = 0u; i < texelCount; i = i + 1u) {
-        let pix = inputBlock.pixels[i];
-        let p = pix.partitionNum;
+        let p = inputBlock.texel_partitions[i];
 
         if (p < 4u) {
-            let proj = dot(pix.data - avg[p], direction[p]);
+            let proj = dot(inputBlock.pixels[i] - avg[p], direction[p]);
             let span = max(maxProj[p] - minProj[p], 1e-6);
             let w = clamp((proj - minProj[p]) / span, 0.0, 1.0);
             outputBlocks[blockIndex].weights[i] = w;

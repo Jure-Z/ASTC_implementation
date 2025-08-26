@@ -76,6 +76,8 @@ const float ERROR_CALC_DEFAULT = 1e30f;
 
 static constexpr uint16_t BLOCK_BAD_PARTITIONING = 0xFFFFu;
 
+const float TUNE_DB_LIMIT_BASE = 200.0f;
+
 enum quant_method
 {
 	QUANT_2 = 0,
@@ -483,25 +485,15 @@ void construct_angular_tables(
 //-----------------------------------------------------------------------------------------------------------------------------------
 
 //inputBlocksBuffer structs
-struct alignas(16) Pixel {
-	float data[4];
-	uint32_t partition;
-
-	uint32_t padding1;
-	uint32_t padding2;
-	uint32_t padding3;
-};
-
 struct alignas(16) InputBlock {
-	Pixel pixels[BLOCK_MAX_TEXELS];
+	float pixels[BLOCK_MAX_TEXELS][4];
+	uint32_t texel_partitions[BLOCK_MAX_TEXELS];
 	uint32_t partition_pixel_counts[BLOCK_MAX_PARTITIONS];
-	float data_min[4];
-	float data_max[4];
 
-	uint32_t grayscale;
 	uint32_t partitioning_idx;
-	uint32_t xpos;
-	uint32_t ypos;
+	uint32_t grayscale;
+	uint32_t constant_alpha;
+	uint32_t padding;
 };
 
 //pass1_output_idealEndpointsAndWeights structs
@@ -556,7 +548,7 @@ struct alignas(16) QuantizationResult {
 	uint32_t _padding1;
 	uint32_t _padding2;
 
-	uint32_t quantized_weights[BLOCK_MAX_WEIGHTS];
+	uint8_t quantized_weights[BLOCK_MAX_WEIGHTS];
 };
 
 //output of encoding choice errors shader
@@ -724,7 +716,9 @@ public:
 	uint32_t blocksX;
 	uint32_t blocksY;
 
-	const uint32_t batchSize = 512;
+	const uint32_t batchSize = 1800;
+
+	float tune_error_limit;
 
 #if defined(EMSCRIPTEN)
 	std::atomic<int> m_pending_pipelines;
@@ -742,6 +736,8 @@ private:
 	void initPipelines();
 	void initBindGroups();
 	void releasePerImageResources();
+
+	void printBufferSizes();
 
 #if defined(EMSCRIPTEN)
 	void initPipelinesAsync(std::function<void()> on_all_pipelines_created);
