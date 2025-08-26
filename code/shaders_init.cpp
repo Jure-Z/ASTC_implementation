@@ -2,15 +2,15 @@
 #include "webgpu_utils.h"
 
 #if !defined(EMSCRIPTEN)
-#include <shaders_pass1_ideal_endpoints_and_weights_wgsl.h>
-#include <shaders_pass2_decimated_weights_wgsl.h>
-#include <shaders_pass3_compute_angular_offsets_wgsl.h>
-#include <shaders_pass4_lowest_and_highest_weight_wgsl.h>
-#include <shaders_pass5_best_values_for_quant_levels_wgsl.h>
-#include <shaders_pass6_remap_low_and_high_values_wgsl.h>
-#include <shaders_pass7_weights_and_error_for_bm_wgsl.h>
-#include <shaders_pass8_compute_encoding_choice_errors_wgsl.h>
-#include <shaders_pass9_compute_color_error_wgsl.h>
+#include <shaders_pass01_ideal_endpoints_and_weights_wgsl.h>
+#include <shaders_pass02_decimated_weights_wgsl.h>
+#include <shaders_pass03_compute_angular_offsets_wgsl.h>
+#include <shaders_pass04_lowest_and_highest_weight_wgsl.h>
+#include <shaders_pass05_best_values_for_quant_levels_wgsl.h>
+#include <shaders_pass06_remap_low_and_high_values_wgsl.h>
+#include <shaders_pass07_weights_and_error_for_bm_wgsl.h>
+#include <shaders_pass08_compute_encoding_choice_errors_wgsl.h>
+#include <shaders_pass09_compute_color_error_wgsl.h>
 #include <shaders_pass10_color_combinations_for_quant_2part_wgsl.h>
 #include <shaders_pass10_color_combinations_for_quant_3part_wgsl.h>
 #include <shaders_pass10_color_combinations_for_quant_4part_wgsl.h>
@@ -303,15 +303,15 @@ void ASTCEncoder::initBindGroupLayouts() {
 void ASTCEncoder::initPipelines() {
 
     // Load shader modules form embbeded shader code
-    pass1_idealEndpointsShader = prepareShaderModule(device, Shaders::shaders_pass1_ideal_endpoints_and_weights_wgsl, Shaders::shaders_pass1_ideal_endpoints_and_weights_wgsl_len, "Ideal endpoints and weights (pass1)");
-    pass2_decimatedWeightsShader = prepareShaderModule(device, Shaders::shaders_pass2_decimated_weights_wgsl, Shaders::shaders_pass2_decimated_weights_wgsl_len, "decimated weights (pass2)");
-    pass3_angularOffsetsShader = prepareShaderModule(device, Shaders::shaders_pass3_compute_angular_offsets_wgsl, Shaders::shaders_pass3_compute_angular_offsets_wgsl_len, "angular offsets (pass3)");
-    pass4_lowestAndHighestWeightShader = prepareShaderModule(device, Shaders::shaders_pass4_lowest_and_highest_weight_wgsl, Shaders::shaders_pass4_lowest_and_highest_weight_wgsl_len, "lowest and highest weight (pass4)");
-    pass5_valuesForQuantLevelsShader = prepareShaderModule(device, Shaders::shaders_pass5_best_values_for_quant_levels_wgsl, Shaders::shaders_pass5_best_values_for_quant_levels_wgsl_len, "best values for quant levels (pass5)");
-    pass6_remapLowAndHighValuesShader = prepareShaderModule(device, Shaders::shaders_pass6_remap_low_and_high_values_wgsl, Shaders::shaders_pass6_remap_low_and_high_values_wgsl_len, "remap low and high values (pass6)");
-    pass7_weightsAndErrorForBMShader = prepareShaderModule(device, Shaders::shaders_pass7_weights_and_error_for_bm_wgsl, Shaders::shaders_pass7_weights_and_error_for_bm_wgsl_len, "weights and error for block mode (pass7)");
-    pass8_encodingChoiceErrorsShader = prepareShaderModule(device, Shaders::shaders_pass8_compute_encoding_choice_errors_wgsl, Shaders::shaders_pass8_compute_encoding_choice_errors_wgsl_len, "encoding choice errors (pass8)");
-    pass9_computeColorErrorShader = prepareShaderModule(device, Shaders::shaders_pass9_compute_color_error_wgsl, Shaders::shaders_pass9_compute_color_error_wgsl_len, "color format errors (pass9)");
+    pass1_idealEndpointsShader = prepareShaderModule(device, Shaders::shaders_pass01_ideal_endpoints_and_weights_wgsl, Shaders::shaders_pass01_ideal_endpoints_and_weights_wgsl_len, "Ideal endpoints and weights (pass1)");
+    pass2_decimatedWeightsShader = prepareShaderModule(device, Shaders::shaders_pass02_decimated_weights_wgsl, Shaders::shaders_pass02_decimated_weights_wgsl_len, "decimated weights (pass2)");
+    pass3_angularOffsetsShader = prepareShaderModule(device, Shaders::shaders_pass03_compute_angular_offsets_wgsl, Shaders::shaders_pass03_compute_angular_offsets_wgsl_len, "angular offsets (pass3)");
+    pass4_lowestAndHighestWeightShader = prepareShaderModule(device, Shaders::shaders_pass04_lowest_and_highest_weight_wgsl, Shaders::shaders_pass04_lowest_and_highest_weight_wgsl_len, "lowest and highest weight (pass4)");
+    pass5_valuesForQuantLevelsShader = prepareShaderModule(device, Shaders::shaders_pass05_best_values_for_quant_levels_wgsl, Shaders::shaders_pass05_best_values_for_quant_levels_wgsl_len, "best values for quant levels (pass5)");
+    pass6_remapLowAndHighValuesShader = prepareShaderModule(device, Shaders::shaders_pass06_remap_low_and_high_values_wgsl, Shaders::shaders_pass06_remap_low_and_high_values_wgsl_len, "remap low and high values (pass6)");
+    pass7_weightsAndErrorForBMShader = prepareShaderModule(device, Shaders::shaders_pass07_weights_and_error_for_bm_wgsl, Shaders::shaders_pass07_weights_and_error_for_bm_wgsl_len, "weights and error for block mode (pass7)");
+    pass8_encodingChoiceErrorsShader = prepareShaderModule(device, Shaders::shaders_pass08_compute_encoding_choice_errors_wgsl, Shaders::shaders_pass08_compute_encoding_choice_errors_wgsl_len, "encoding choice errors (pass8)");
+    pass9_computeColorErrorShader = prepareShaderModule(device, Shaders::shaders_pass09_compute_color_error_wgsl, Shaders::shaders_pass09_compute_color_error_wgsl_len, "color format errors (pass9)");
     pass10_colorEndpointCombinationsShader_2part = prepareShaderModule(device, Shaders::shaders_pass10_color_combinations_for_quant_2part_wgsl, Shaders::shaders_pass10_color_combinations_for_quant_2part_wgsl_len, "color endpoint combinations (pass10, 2part)");
     pass10_colorEndpointCombinationsShader_3part = prepareShaderModule(device, Shaders::shaders_pass10_color_combinations_for_quant_3part_wgsl, Shaders::shaders_pass10_color_combinations_for_quant_3part_wgsl_len, "color endpoint combinations (pass10, 3part)");
     pass10_colorEndpointCombinationsShader_4part = prepareShaderModule(device, Shaders::shaders_pass10_color_combinations_for_quant_4part_wgsl, Shaders::shaders_pass10_color_combinations_for_quant_4part_wgsl_len, "color endpoint combinations (pass10, 4part)");
@@ -708,15 +708,15 @@ void ASTCEncoder::initPipelinesAsync(std::function<void()> on_all_pipelines_crea
             }
         });
 
-    pass1_idealEndpointsShader = prepareShaderModule(device, "/shaders/pass1_ideal_endpoints_and_weights.wgsl", "Ideal endpoints and weights (pass1)");
-    pass2_decimatedWeightsShader = prepareShaderModule(device, "/shaders/pass2_decimated_weights.wgsl", "decimated weights (pass2)");
-    pass3_angularOffsetsShader = prepareShaderModule(device, "/shaders/pass3_compute_angular_offsets.wgsl", "angular offsets (pass3)");
-    pass4_lowestAndHighestWeightShader = prepareShaderModule(device, "/shaders/pass4_lowest_and_highest_weight.wgsl", "lowest and highest weight (pass4)");
-    pass5_valuesForQuantLevelsShader = prepareShaderModule(device, "/shaders/pass5_best_values_for_quant_levels.wgsl", "best values for quant levels (pass5)");
-    pass6_remapLowAndHighValuesShader = prepareShaderModule(device, "/shaders/pass6_remap_low_and_high_values.wgsl", "remap low and high values (pass6)");
-    pass7_weightsAndErrorForBMShader = prepareShaderModule(device, "/shaders/pass7_weights_and_error_for_bm.wgsl", "weights and error for block mode (pass7)");
-    pass8_encodingChoiceErrorsShader = prepareShaderModule(device, "/shaders/pass8_compute_encoding_choice_errors.wgsl", "encoding choice errors (pass8)");
-    pass9_computeColorErrorShader = prepareShaderModule(device, "/shaders/pass9_compute_color_error.wgsl", "color format errors (pass9)");
+    pass1_idealEndpointsShader = prepareShaderModule(device, "/shaders/pass01_ideal_endpoints_and_weights.wgsl", "Ideal endpoints and weights (pass1)");
+    pass2_decimatedWeightsShader = prepareShaderModule(device, "/shaders/pass02_decimated_weights.wgsl", "decimated weights (pass2)");
+    pass3_angularOffsetsShader = prepareShaderModule(device, "/shaders/pass03_compute_angular_offsets.wgsl", "angular offsets (pass3)");
+    pass4_lowestAndHighestWeightShader = prepareShaderModule(device, "/shaders/pass04_lowest_and_highest_weight.wgsl", "lowest and highest weight (pass4)");
+    pass5_valuesForQuantLevelsShader = prepareShaderModule(device, "/shaders/pass05_best_values_for_quant_levels.wgsl", "best values for quant levels (pass5)");
+    pass6_remapLowAndHighValuesShader = prepareShaderModule(device, "/shaders/pass06_remap_low_and_high_values.wgsl", "remap low and high values (pass6)");
+    pass7_weightsAndErrorForBMShader = prepareShaderModule(device, "/shaders/pass07_weights_and_error_for_bm.wgsl", "weights and error for block mode (pass7)");
+    pass8_encodingChoiceErrorsShader = prepareShaderModule(device, "/shaders/pass08_compute_encoding_choice_errors.wgsl", "encoding choice errors (pass8)");
+    pass9_computeColorErrorShader = prepareShaderModule(device, "/shaders/pass09_compute_color_error.wgsl", "color format errors (pass9)");
     pass10_colorEndpointCombinationsShader_2part = prepareShaderModule(device, "/shaders/pass10_color_combinations_for_quant_2part.wgsl", "color endpoint combinations (pass10, 2part)");
     pass10_colorEndpointCombinationsShader_3part = prepareShaderModule(device, "/shaders/pass10_color_combinations_for_quant_3part.wgsl", "color endpoint combinations (pass10, 3part)");
     pass10_colorEndpointCombinationsShader_4part = prepareShaderModule(device, "/shaders/pass10_color_combinations_for_quant_4part.wgsl", "color endpoint combinations (pass10, 4part)");

@@ -119,4 +119,5 @@ else()
             "$<TARGET_FILE_DIR:webgpu_astc>"
     COMMENT "Copying Dawn library to executable directory..."
 )
+
 endif()
