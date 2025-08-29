@@ -1,6 +1,8 @@
 #include "astc.h"
 #include "averages_and_directions.h"
 
+#include <iostream>
+
 // Calculates the weighted squared difference between two colors
 static float dot_product_squared_difference(
 	const float color1[4],

@@ -1,4 +1,4 @@
-const WORKGROUP_SIZE: u32 = 32u;
+const WORKGROUP_SIZE: u32 = 64u;
 const MAX_ANGULAR_QUANT = 12; // The max number of distinct quant levels to test
 const MAX_BEST_RESULTS = 36;  // A safe upper bound for the best_results array size
 const BLOCK_MAX_TEXELS: u32 = 144u;
@@ -29,6 +29,9 @@ struct UniformVariables {
     _padding2: u32,
 
     channel_weights : vec4<f32>,
+
+    partitioning_count_selected : vec4<u32>,
+    partitioning_count_all : vec4<u32>,
 };
 
 struct DecimationInfo {

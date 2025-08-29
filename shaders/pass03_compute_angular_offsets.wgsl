@@ -1,4 +1,4 @@
-const WORKGROUP_SIZE: u32 = 32u;
+const WORKGROUP_SIZE: u32 = 64u;
 const BLOCK_MAX_TEXELS: u32 = 144u; // Max texels (e.g., 12x12)
 const BLOCK_MAX_WEIGHTS: u32 = 64u;  // Max decimated weights (e.g., 8x8)
 const MAX_ANGULAR_STEPS: u32 = 16u;
@@ -26,6 +26,9 @@ struct UniformVariables {
     _padding2: u32,
 
     channel_weights : vec4<f32>,
+
+    partitioning_count_selected : vec4<u32>,
+    partitioning_count_all : vec4<u32>,
 };
 
 struct DecimationInfo {

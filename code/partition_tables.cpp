@@ -434,3 +434,31 @@ void init_partition_tables(
 
 	delete[] canonical_patterns;
 }
+
+void init_partition_tables_GPU(
+	block_descriptor& block_descriptor
+) {
+	int partition_tables_len = (3 * BLOCK_MAX_PARTITIONINGS) + 1;
+
+	for (int i = 0; i < partition_tables_len; i++) {
+		block_descriptor.partitionings_GPU[i].partition_count = block_descriptor.partitionings[i].partition_count;
+		block_descriptor.partitionings_GPU[i].partition_index = block_descriptor.partitionings[i].partition_index;
+
+		for (int p = 0; p < BLOCK_MAX_PARTITIONS; p++) {
+			block_descriptor.partitionings_GPU[i].partition_texel_count[p] = block_descriptor.partitionings[i].partition_texel_count[p];
+		}
+
+		for (int t = 0; t < BLOCK_MAX_TEXELS; t++) {
+			block_descriptor.partitionings_GPU[i].partition_of_texel[t] = block_descriptor.partitionings[i].partition_of_texel[t];
+		}
+	}
+
+	block_descriptor.uniform_variables.partitioning_count_selected[0] = block_descriptor.partitioning_count_selected[0];
+	block_descriptor.uniform_variables.partitioning_count_selected[1] = block_descriptor.partitioning_count_selected[1];
+	block_descriptor.uniform_variables.partitioning_count_selected[2] = block_descriptor.partitioning_count_selected[2];
+	block_descriptor.uniform_variables.partitioning_count_selected[3] = block_descriptor.partitioning_count_selected[3];
+	block_descriptor.uniform_variables.partitioning_count_all[0] = block_descriptor.partitioning_count_all[0];
+	block_descriptor.uniform_variables.partitioning_count_all[1] = block_descriptor.partitioning_count_all[1];
+	block_descriptor.uniform_variables.partitioning_count_all[2] = block_descriptor.partitioning_count_all[2];
+	block_descriptor.uniform_variables.partitioning_count_all[3] = block_descriptor.partitioning_count_all[3];
+}

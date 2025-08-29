@@ -23,7 +23,8 @@ const unsigned int BLOCK_MAX_PARTITIONS = 4;
 
 const unsigned int BLOCK_MAX_PARTITIONINGS = 1024;
 
-const unsigned int TUNE_MAX_PARTITIONING_CANDIDATES = 2;
+const unsigned int TUNE_MAX_PARTITIONING_CANDIDATE_LIMIT = 128;
+const unsigned int TUNE_MAX_PARTITIONING_CANDIDATES = 4;
 
 const unsigned int BLOCK_MAX_WEIGHTS = 64;
 
@@ -67,7 +68,7 @@ const unsigned int QUANT_LEVELS = 21; //QUANT_2 to QUANT_256
 const unsigned int NUM_INT_COUNTS = 4; //(2, 4, 6 and 8)
 const unsigned int MAX_INT_COUNT_COMBINATIONS = 13; //4 partitions, int count can only differ by 1 step
 
-const unsigned int TUNE_MAX_TRIAL_CANDIDATES = 4; //The maximum number of candidate encodings tested for each encoding mode
+const unsigned int TUNE_MAX_TRIAL_CANDIDATES = 8; //The maximum number of candidate encodings tested for each encoding mode
 
 //The maximum number of texels used during partition selection for texel clustering
 const unsigned int BLOCK_MAX_KMEANS_TEXELS = 64;
@@ -288,10 +289,13 @@ struct alignas(16) uniform_variables {
 	uint32_t partition_count;
 	uint32_t tune_candidate_limit;
 
-	uint32_t _padding1;
-	uint32_t _padding2;
+	uint32_t tune_partitoning_candidate_limit;
+	uint32_t requested_partitionings;
 
 	float channel_weights[4];
+
+	uint32_t partitioning_count_selected[BLOCK_MAX_PARTITIONS];
+	uint32_t partitioning_count_all[BLOCK_MAX_PARTITIONS];
 };
 
 struct partition_info {
@@ -300,6 +304,16 @@ struct partition_info {
 	uint8_t partition_texel_count[BLOCK_MAX_PARTITIONS];
 	uint8_t partition_of_texel[BLOCK_MAX_TEXELS];
 	uint8_t texels_of_partition[BLOCK_MAX_PARTITIONS][BLOCK_MAX_TEXELS];
+};
+
+struct alignas(16) partition_info_GPU {
+	uint32_t partition_count;
+	uint32_t partition_index;
+	uint32_t _padding1;
+	uint32_t _padding2;
+
+	uint32_t partition_texel_count[BLOCK_MAX_PARTITIONS];
+	uint32_t partition_of_texel[BLOCK_MAX_TEXELS];
 };
 
 /**
@@ -320,10 +334,11 @@ struct block_descriptor {
 
 
 	partition_info partitionings[(3 * BLOCK_MAX_PARTITIONINGS) + 1];
+	partition_info_GPU partitionings_GPU[(3 * BLOCK_MAX_PARTITIONINGS) + 1];
 	uint16_t partitioning_packed_index[3][BLOCK_MAX_PARTITIONINGS];
 
 	/** @brief The active texels for k-means partition selection. */
-	uint8_t kmeans_texels[BLOCK_MAX_KMEANS_TEXELS];
+	uint32_t kmeans_texels[BLOCK_MAX_KMEANS_TEXELS];
 
 	/** @brief The number of selected partitionings for 1/2/3/4 partitionings. */
 	unsigned int partitioning_count_selected[BLOCK_MAX_PARTITIONS];
@@ -471,6 +486,11 @@ void init_partition_tables(
 	bool can_omit_partitionings,
 	unsigned int partition_count_cutoff
 );
+
+void init_partition_tables_GPU(
+	block_descriptor& block_descriptor
+);
+
 
 
 /**
@@ -716,7 +736,7 @@ public:
 	uint32_t blocksX;
 	uint32_t blocksY;
 
-	const uint32_t batchSize = 1800;
+	const uint32_t batchSize = 920;
 
 	float tune_error_limit;
 
@@ -740,7 +760,27 @@ private:
 	void printBufferSizes();
 
 #if defined(EMSCRIPTEN)
+	struct PipelineBuildInfo {
+		wgpu::ShaderModule* shaderModule;
+		std::string shaderPath;
+		std::string shaderLabel;
+		wgpu::ComputePipeline* targetPipeline;
+		wgpu::BindGroupLayout* bindGroupLayout;
+	};
+
+	std::vector<PipelineBuildInfo> m_pipeline_build_queue;
+	int m_current_pipeline_index = 0;
+
+	void createNextPipeline(std::function<void()> on_all_pipelines_created);
 	void initPipelinesAsync(std::function<void()> on_all_pipelines_created);
+
+	struct PipelineCreationContext {
+		ASTCEncoder* encoderInstance;
+		wgpu::ComputePipeline* targetPipeline;
+		std::function<void()> onAllPipelinesCreated;
+	};
+
+	static void OnPipelineCreated(WGPUCreatePipelineAsyncStatus status, WGPUComputePipeline pipeline, char const* message, void* userdata);
 #endif
 
 	wgpu::Device device;
@@ -760,6 +800,14 @@ private:
 	std::vector<PackedBlockModeLookup> valid_block_modes; //Block modes that we actually consider for encoding
 
 	//Shader modules 
+	wgpu::ShaderModule pass001_initKmeansShader;
+	wgpu::ShaderModule pass002_assignKmeansShader;
+	wgpu::ShaderModule pass003_updateKmeansShader;
+	wgpu::ShaderModule pass004_partitionMismatchShader;
+	wgpu::ShaderModule pass005_partitionOrderingShader;
+	wgpu::ShaderModule pass006_evaluatePartitionShader;
+	wgpu::ShaderModule pass007_preparePartitionedBlocksShader;
+
 	wgpu::ShaderModule pass1_idealEndpointsShader;
 	wgpu::ShaderModule pass2_decimatedWeightsShader;
 	wgpu::ShaderModule pass3_angularOffsetsShader;
@@ -785,6 +833,14 @@ private:
 	wgpu::ShaderModule pass18_pickBestCandidateShader;
 
 	//Compute Pipelines
+	wgpu::ComputePipeline pass001_pipeline;
+	wgpu::ComputePipeline pass002_pipeline;
+	wgpu::ComputePipeline pass003_pipeline;
+	wgpu::ComputePipeline pass004_pipeline;
+	wgpu::ComputePipeline pass005_pipeline;
+	wgpu::ComputePipeline pass006_pipeline;
+	wgpu::ComputePipeline pass007_pipeline;
+
 	wgpu::ComputePipeline pass1_pipeline;
 	wgpu::ComputePipeline pass2_pipeline;
 	wgpu::ComputePipeline pass3_pipeline;
@@ -810,6 +866,14 @@ private:
 	wgpu::ComputePipeline pass18_pipeline;
 
 	//Bind Group Layouts
+	wgpu::BindGroupLayout pass001_bindGroupLayout;
+	wgpu::BindGroupLayout pass002_bindGroupLayout;
+	wgpu::BindGroupLayout pass003_bindGroupLayout;
+	wgpu::BindGroupLayout pass004_bindGroupLayout;
+	wgpu::BindGroupLayout pass005_bindGroupLayout;
+	wgpu::BindGroupLayout pass006_bindGroupLayout;
+	wgpu::BindGroupLayout pass007_bindGroupLayout;
+
 	wgpu::BindGroupLayout pass1_bindGroupLayout;
 	wgpu::BindGroupLayout pass2_bindGroupLayout;
 	wgpu::BindGroupLayout pass3_bindGroupLayout;
@@ -833,6 +897,13 @@ private:
 	//Buffers
 	wgpu::Buffer uniformsBuffer;
 
+	//Buffers for partitioning info (constant after setup)
+	wgpu::Buffer kmeansTexelsBuffer;
+	wgpu::Buffer coverageBitmaps2Buffer;
+	wgpu::Buffer coverageBitmaps3Buffer;
+	wgpu::Buffer coverageBitmaps4Buffer;
+	wgpu::Buffer partitionInfoBuffer;
+
 	//Buffers for block mode info (constant after setup)
 	wgpu::Buffer blockModesBuffer;
 	wgpu::Buffer blockModeIndexBuffer;
@@ -850,6 +921,15 @@ private:
 
 	//Block data buffers (they contain the data for individual blocks)
 	wgpu::Buffer inputBlocksBuffer;
+
+	wgpu::Buffer pass001_output_clusterCenters;
+	wgpu::Buffer pass002_output_texelAssignments;
+	wgpu::Buffer pass004_output_mismatchCounts;
+	wgpu::Buffer pass005_output_partitionOrdering;
+	wgpu::Buffer pass006_output_partitioningErrors;
+
+	wgpu::Buffer partitionedBlocksBuffer;
+
 	wgpu::Buffer pass1_output_idealEndpointsAndWeights;
 	wgpu::Buffer pass2_output_decimatedWeights;
 	wgpu::Buffer pass3_output_angular_offsets;
@@ -874,6 +954,14 @@ private:
 	wgpu::Buffer pass1111ReadbackBuffer;
 
 	//Bind Groups
+	wgpu::BindGroup pass001_bindGroup;
+	wgpu::BindGroup pass002_bindGroup;
+	wgpu::BindGroup pass003_bindGroup;
+	wgpu::BindGroup pass004_bindGroup;
+	wgpu::BindGroup pass005_bindGroup;
+	wgpu::BindGroup pass006_bindGroup;
+	wgpu::BindGroup pass007_bindGroup;
+
 	wgpu::BindGroup pass1_bindGroup;
 	wgpu::BindGroup pass2_bindGroup;
 	wgpu::BindGroup pass3_bindGroup;

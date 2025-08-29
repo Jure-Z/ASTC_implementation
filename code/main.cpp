@@ -1,3 +1,6 @@
+#include <webgpu/webgpu.h>
+#include <webgpu/webgpu_cpp.h>
+
 #if defined(EMSCRIPTEN)
 #include <emscripten.h>
 #include <emscripten/bind.h>

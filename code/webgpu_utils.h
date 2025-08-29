@@ -80,7 +80,7 @@ void mapOutputBufferSync(wgpu::Device device, wgpu::Buffer buffer, uint64_t bloc
 
     while (!context.done) {
 #if defined(__EMSCRIPTEN__)
-        emscripten_sleep(100);
+        emscripten_sleep(10);
 #else
         device.Tick();
 #endif

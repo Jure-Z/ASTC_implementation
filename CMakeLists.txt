@@ -5,7 +5,7 @@ project(
     LANGUAGES CXX C
 )
 
-option(DEV_MODE "Set up development helper settings" OFF)
+option(DEV_MODE "Set up development helper settings" ON)
 
 
 # This function automates the process of embedding a file into a C++ header
@@ -119,5 +119,4 @@ else()
             "$<TARGET_FILE_DIR:webgpu_astc>"
     COMMENT "Copying Dawn library to executable directory..."
 )
-
 endif()
